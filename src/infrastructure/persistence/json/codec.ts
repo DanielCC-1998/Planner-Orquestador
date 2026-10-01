@@ -15,7 +15,7 @@ import type { InfraErrorReason } from '@shared/ipc/errors'
 import { MemberSchema, MetaSchema, StructureSchema, TaskSchema } from '../../validation/schemas'
 
 export const PROJECT_FORMAT = 'planner.project'
-export const CURRENT_SCHEMA_VERSION = 1
+export const CURRENT_SCHEMA_VERSION = 2
 
 const ProjectDocSchema = z.object({
   format: z.literal(PROJECT_FORMAT),
@@ -32,7 +32,11 @@ type RawDoc = Record<string, unknown> & { schemaVersion: number }
  * Format migrations: MIGRATIONS[n] turns a document of version n into version n+1.
  * When the format changes: bump CURRENT_SCHEMA_VERSION, add the migration and a test fixture.
  */
-const MIGRATIONS: Record<number, (doc: RawDoc) => RawDoc> = {}
+const MIGRATIONS: Record<number, (doc: RawDoc) => RawDoc> = {
+  // 1 → 2: projects get a story points → hours scale, off by default. A literal on purpose:
+  // a migration must keep producing the same document even if the domain defaults change.
+  1: (doc) => ({ ...doc, schemaVersion: 2, meta: { ...(doc['meta'] as object), pointScale: null } })
+}
 
 /**
  * Error of the codec. Its reason is an infrastructure one (not JSON, not a Planner file…) or,

@@ -4,6 +4,7 @@ import {
   parseDuration,
   progressOf,
   formatDurationInput,
+  type EstimateSource,
   type Member,
   type Metrics,
   type Task
@@ -36,6 +37,8 @@ export interface TreeRowProps {
   row: TreeRow
   task: Task
   own: Metrics
+  /** Where the task's own hours come from: typed by hand, its story points, or nowhere. */
+  estimateSource: EstimateSource
   attr: Metrics
   /** Minutes of the whole branch, if it includes shared subtasks counted in another branch. */
   branchMinutes: number | null
@@ -368,6 +371,7 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
           {/* Own hours */}
           <div
             data-col="estimate"
+            data-source={p.estimateSource ?? 'none'}
             className={cn('px-2 text-right tabular-nums', valueTone)}
             onDoubleClick={(e) => {
               e.stopPropagation()
@@ -377,13 +381,17 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
             {p.editing?.field === 'estimate' ? (
               <InlineEditor
                 initial={formatDurationInput(task.estimateMinutes)}
-                placeholder="1h 30m"
+                placeholder={p.estimateSource === 'points' ? f.hours(own.minutes) : '1h 30m'}
                 align="right"
                 onCommit={commitEstimate}
                 onCancel={stopEdit}
               />
-            ) : task.estimateMinutes === null ? (
+            ) : p.estimateSource === null ? (
               <span className={cn('text-muted-foreground/50', row.childCount === 0 && !isRef && 'text-warning/80')}>—</span>
+            ) : p.estimateSource === 'points' ? (
+              <Tooltip content={t.tree.row.fromPoints(f.storyPoints(task.storyPoints ?? 0))}>
+                <span className="text-muted-foreground">{paren(f.hours(own.minutes), isRef)}</span>
+              </Tooltip>
             ) : (
               paren(f.hours(own.minutes), isRef)
             )}

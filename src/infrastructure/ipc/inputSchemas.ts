@@ -55,6 +55,15 @@ export const MetaPatchSchema = z.strictObject({
   contingencyBps: z.number().int().min(0).max(100_000).optional(),
   taxBps: z.number().int().min(0).max(100_000).optional(),
   taxLabel: z.string().max(20).optional(),
+  pointScale: z
+    .strictObject({
+      minutesPerPoint: z.number().int().min(1).max(100_000 * 60),
+      overrides: z
+        .array(z.strictObject({ points: z.number().gt(0).max(10_000), minutes: z.number().int().min(0).max(100_000 * 60) }))
+        .max(20)
+    })
+    .nullable()
+    .optional(),
   quote: QuoteSchema.optional(),
   archived: z.boolean().optional()
 })

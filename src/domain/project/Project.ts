@@ -1,4 +1,5 @@
 import type { IsoDate, IsoDateTime, MemberId, ProjectId, TaskId } from '../common/primitives'
+import type { PointScale } from '../estimation/pointScale'
 import type { TaskGraph } from '../graph/TaskGraph'
 import type { Task } from '../task/Task'
 import type { Member } from '../team/Member'
@@ -31,6 +32,8 @@ export interface ProjectMeta {
   readonly contingencyBps: number
   readonly taxBps: number
   readonly taxLabel: string
+  /** How story points turn into hours; null = they do not (hours are only typed by hand). */
+  readonly pointScale: PointScale | null
   readonly quote: QuoteInfo
   readonly archived: boolean
   readonly createdAt: IsoDateTime

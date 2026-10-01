@@ -22,6 +22,16 @@ export const en = {
   ownWorkHint: 'In addition to its subtasks',
   durationHint: 'e.g. 1.5 · 90m · 1h 30m · 2d',
   unestimated: 'Unestimated',
+  /** Hint of the hours field when they come from the project's story point scale. */
+  fromPoints: (points: string) => `From story points (${points} SP)`,
+  /** Hint of the hours field when they are typed by hand and the scale would give a value. */
+  manualOverride: 'Typed by hand: they take priority over the story points',
+  /** Button that clears the typed hours; `hours` is what the story points give. */
+  useStoryPoints: (hours: string) => `Use story points (${hours})`,
+  /** Story points field of a task with subtasks. */
+  ownStoryPoints: 'Own story points (in addition to its subtasks)',
+  /** The task has story points but the project has no scale. */
+  noScaleHint: 'Set the hours of a story point in Project settings to get hours from story points',
   rate: (currencySymbol: string) => `Rate (${currencySymbol}/h)`,
   inheritedFromMember: (name: string) => `Inherited from ${name}`,
   inheritedFromProject: 'Inherited from the project',
@@ -88,6 +98,11 @@ export const es: typeof en = {
   ownWorkHint: 'Además de sus subtareas',
   durationHint: 'Ej.: 1,5 · 90m · 1h 30m · 2d',
   unestimated: 'Sin estimar',
+  fromPoints: (points) => `Desde los puntos (${points} SP)`,
+  manualOverride: 'Escritas a mano: mandan sobre los puntos',
+  useStoryPoints: (hours) => `Usar los puntos (${hours})`,
+  ownStoryPoints: 'Puntos propios (además de sus subtareas)',
+  noScaleHint: 'Define en Ajustes del proyecto cuántas horas vale un punto para sacar las horas de los puntos',
   rate: (currencySymbol) => `Tarifa (${currencySymbol}/h)`,
   inheritedFromMember: (name) => `Heredada de ${name}`,
   inheritedFromProject: 'Heredada del proyecto',

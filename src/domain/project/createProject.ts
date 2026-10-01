@@ -47,6 +47,7 @@ export function createProjectState(
     contingencyBps: 0,
     taxBps: 0,
     taxLabel: '',
+    pointScale: null,
     quote: { number: '', date: null, validityDays: 30, terms: '' },
     archived: false,
     createdAt: now,

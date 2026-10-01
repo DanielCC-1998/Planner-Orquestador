@@ -39,6 +39,8 @@ interface CardData {
   code: string
   path: string
   minutes: number
+  /** No hours at all (neither typed nor from story points), as opposed to an estimate of 0 h. */
+  unestimated: boolean
   storyPoints: number
   member: Member | undefined
   shared: number
@@ -79,7 +81,7 @@ function CardView({
       ) : null}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         {card.member ? <Avatar name={card.member.name} initials={card.member.initials} color={card.member.color} size="sm" /> : null}
-        {card.minutes > 0 ? <span className="tabular-nums">{f.hours(card.minutes)}</span> : <span className="text-warning">{t.board.unestimated}</span>}
+        {card.minutes > 0 || !card.unestimated ? <span className="tabular-nums">{f.hours(card.minutes)}</span> : <span className="text-warning">{t.board.unestimated}</span>}
         {card.storyPoints > 0 ? (
           <span className="rounded bg-muted px-1 tabular-nums">
             {f.storyPoints(card.storyPoints)} {t.board.storyPointsUnit}
@@ -201,6 +203,7 @@ export function BoardView() {
         code: est.codes.get(id) ?? '',
         path,
         minutes: metrics?.minutes ?? 0,
+        unestimated: (metrics?.unestimated ?? 1) > 0,
         storyPoints: metrics?.storyPoints ?? 0,
         member: task.assigneeId ? state.members.get(task.assigneeId) : undefined,
         shared: graph.parents(id).length

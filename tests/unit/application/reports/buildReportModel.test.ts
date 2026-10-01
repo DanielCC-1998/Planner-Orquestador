@@ -90,3 +90,15 @@ describe('buildReportModel', () => {
     )
   })
 })
+
+describe('buildReportModel with hours from story points', () => {
+  it('derived hours appear in the rows and the table still adds up to the total', () => {
+    const { state, ids } = loginSignupScenario()
+    const cleared = run(state, { type: 'task.update', id: ids.table, patch: { estimateMinutes: null } }).state
+    const scaled = { ...cleared, meta: { ...cleared.meta, pointScale: { minutesPerPoint: 60, overrides: [] } } }
+    const m = buildReportModel(scaled, DEFAULT_REPORT_OPTIONS, EMPTY_ISSUER, NOW)
+    expect(taskRows(m.rows).find((r) => r.title === 'Users table')!.minutes).toBe(120)
+    expect(taskRows(m.rows).reduce((a, r) => a + r.minutes, 0)).toBe(m.summary.totalMinutes)
+    expect(m.summary.totalMinutes).toBe(13 * 60)
+  })
+})

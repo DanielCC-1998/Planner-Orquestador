@@ -1,6 +1,6 @@
 import fc from 'fast-check'
 import { TaskGraph, type StructureDTO } from '@domain/graph/TaskGraph'
-import { TASK_STATUSES, type Member, type ProjectState, type Task } from '@domain'
+import { TASK_STATUSES, type Member, type PointScale, type ProjectState, type Task } from '@domain'
 import { newState } from '@tests/support/builders'
 
 const uuid = (i: number, prefix: string) => `${prefix}-0000-4000-8000-${i.toString(16).padStart(12, '0')}`
@@ -73,10 +73,15 @@ export function projectArb(maxTasks = 40, maxParents = 3): fc.Arbitrary<Generate
           updatedAt: '2026-01-01T00:00:00.000Z'
         })
       }
+      // A story point scale in two of every three projects, so derived hours are covered too.
+      const pointScale: PointScale | null =
+        rnd(3) === 0
+          ? null
+          : { minutesPerPoint: 1 + rnd(240), overrides: rnd(2) === 0 ? [] : [{ points: 5, minutes: rnd(600) }] }
       const base = newState({ defaultRateCents: defaultRate })
       const state: ProjectState = {
         ...base,
-        meta: { ...base.meta, contingencyBps },
+        meta: { ...base.meta, contingencyBps, pointScale },
         members: new Map(memberList.map((m) => [m.id, m])),
         tasks,
         graph: g.value

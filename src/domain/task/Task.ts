@@ -17,7 +17,10 @@ export interface Task {
   readonly status: TaskStatus
   readonly priority: Priority
   readonly storyPoints: number | null
-  /** The task's OWN work, on top of its subtasks' work. */
+  /**
+   * Hours typed by hand for the task's OWN work, on top of its subtasks' work. null = they come
+   * from its story points through the project scale, or the task is unestimated.
+   */
   readonly estimateMinutes: number | null
   readonly assigneeId: MemberId | null
   /** Hourly rate in cents that overrides the person's and the project's rates. */

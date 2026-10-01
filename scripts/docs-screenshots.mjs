@@ -113,7 +113,8 @@ const PROJECTS = [
             description: 'Stripe and PayPal integration.\n1. Card payments\n2. Wallets\n3. Refunds from the dashboard',
             children: [{ ref: 'users' }]
           },
-          { title: 'Transactional emails', h: 6, sp: 2 }
+          // No typed hours: they come from its story points (2 × 3 h).
+          { title: 'Transactional emails', sp: 2 }
         ]
       },
       {
@@ -136,6 +137,8 @@ const PROJECTS = [
       contingencyBps: 1000,
       taxBps: 2100,
       startDate: '2026-10-05',
+      // Story points → hours: 1 point = 3 h by the rule of three, except 13 points = 36 h (not 39 h).
+      pointScale: { minutesPerPoint: 180, overrides: [{ points: 13, minutes: 2160 }] },
       quote: {
         number: 'Q-2026-014',
         date: '2026-09-30',
@@ -281,6 +284,11 @@ try {
   await shot('board')
   await page.getByRole('tab', { name: 'Workload' }).click()
   await shot('workload')
+
+  await page.getByRole('button', { name: 'Project settings' }).click()
+  await page.getByRole('dialog').getByRole('tab', { name: 'Story points' }).click()
+  await shot('story-points')
+  await page.getByRole('button', { name: 'Cancel' }).click()
 
   await page.getByRole('tab', { name: 'Tree' }).click()
   await invoke('settings.set', { theme: 'dark' })

@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { MAX_SAFE } from '@domain/common/primitives'
 import { projectArb } from '@tests/support/arbitraries'
 import { loginSignupScenario, run } from '@tests/support/builders'
-import { branchMetrics, estimate, sumMetrics } from '@domain/estimation/estimate'
+import { branchMetrics, effectiveEstimate, estimate, sumMetrics } from '@domain/estimation/estimate'
+import type { PointScale, ProjectState } from '@domain'
 
 describe('estimate: Login/Registro scenario with a shared subtask', () => {
   const { state, ids } = loginSignupScenario()
@@ -134,5 +135,52 @@ describe('estimate: properties over random DAGs', () => {
       }),
       { numRuns: 200 }
     )
+  })
+})
+
+describe('estimate: hours from story points', () => {
+  const { state, ids } = loginSignupScenario()
+  const oneHour: PointScale = { minutesPerPoint: 60, overrides: [] }
+  const withScale = (scale: PointScale | null, s: ProjectState = state): ProjectState => ({
+    ...s,
+    meta: { ...s.meta, pointScale: scale }
+  })
+  // The users table (2 SP) without typed hours: it takes them from its story points.
+  const cleared = run(state, { type: 'task.update', id: ids.table, patch: { estimateMinutes: null } }).state
+
+  it('a task with story points and no typed hours takes them from the scale', () => {
+    const e = estimate(withScale(oneHour, cleared))
+    expect(effectiveEstimate(cleared.tasks.get(ids.table)!, oneHour)).toEqual({ minutes: 120, source: 'points' })
+    expect(e.own.get(ids.table)!.minutes).toBe(120)
+    expect(e.total.minutes).toBe(13 * 60)
+    // The shared subtask is still counted once: 2 h saved.
+    expect(e.savings.minutes).toBe(120)
+  })
+
+  it('typed hours win over the scale', () => {
+    const e = estimate(withScale(oneHour))
+    expect(effectiveEstimate(state.tasks.get(ids.form)!, oneHour)).toEqual({ minutes: 360, source: 'manual' })
+    expect(e.total.minutes).toBe(15 * 60)
+  })
+
+  it('a task is unestimated only when neither typed hours nor the scale give it hours', () => {
+    expect(estimate(withScale(null, cleared)).total.unestimated).toBe(1)
+    expect(estimate(withScale(oneHour, cleared)).total.unestimated).toBe(0)
+  })
+
+  it('changing the scale updates every task that follows it', () => {
+    const exception: PointScale = { minutesPerPoint: 90, overrides: [{ points: 2, minutes: 200 }] }
+    expect(estimate(withScale(oneHour, cleared)).own.get(ids.table)!.minutes).toBe(120)
+    expect(estimate(withScale(exception, cleared)).own.get(ids.table)!.minutes).toBe(200)
+  })
+
+  it('the own story points of a parent give it own hours too', () => {
+    const parent = run(state, { type: 'task.update', id: ids.login, patch: { storyPoints: 1 } }).state
+    expect(estimate(withScale(oneHour, parent)).own.get(ids.login)!.minutes).toBe(60)
+  })
+
+  it('derived hours are priced with the applicable rate', () => {
+    // 2 h at the project rate of €50/h.
+    expect(estimate(withScale(oneHour, cleared)).own.get(ids.table)!.costCents).toBe(10_000)
   })
 })

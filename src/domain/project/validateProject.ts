@@ -2,6 +2,7 @@ import { isIsoDate } from '../common/calendar'
 import { isCurrencyCode } from '../common/money'
 import { ok, type DomainError, type Result } from '../common/primitives'
 import { has, HEX_COLOR, invalid, isNonNegInt, isValidHoursPerDay, MAX_RATE_CENTS } from '../common/validation'
+import { validatePointScale } from '../estimation/pointScale'
 import { MAX_PROJECT_NAME_LENGTH, type MetaPatch, type QuoteInfo } from './Project'
 
 /** Validates and normalizes the general details of the project. */
@@ -73,6 +74,11 @@ export function validateMetaPatch(patch: MetaPatch): Result<MetaPatch, DomainErr
     const label = String(patch.taxLabel).trim()
     if (label.length > 20) return invalid('The tax name is too long', 'TAX_LABEL_TOO_LONG')
     out.taxLabel = label
+  }
+  if (has(patch, 'pointScale')) {
+    const scale = validatePointScale(patch.pointScale)
+    if (!scale.ok) return scale
+    out.pointScale = scale.value
   }
   if (has(patch, 'quote')) {
     const q = patch.quote as QuoteInfo

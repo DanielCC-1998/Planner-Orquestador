@@ -119,7 +119,8 @@ describe('apply', () => {
           expect(sumMetrics(est.attributed, s.graph.roots()).minutes).toBe(est.total.minutes)
           if (cmd.type === 'task.delete' && cmd.mode === 'cascade') {
             const removed = [...before.tasks.keys()].filter((id) => !s.tasks.has(id))
-            const removedMinutes = removed.reduce((acc, id) => acc + (before.tasks.get(id)!.estimateMinutes ?? 0), 0)
+            const ownBefore = estimate(before).own
+            const removedMinutes = removed.reduce((acc, id) => acc + ownBefore.get(id)!.minutes, 0)
             expect(estimate(before).total.minutes - est.total.minutes).toBe(removedMinutes)
           }
         }

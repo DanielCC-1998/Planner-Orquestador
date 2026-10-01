@@ -34,6 +34,7 @@ A subtask can belong to several tasks at once, and hours, cost and duration stil
 | **Projects as cards** | Each project has a name, client, color, its own currency (EUR, USD…), a default rate, contingency, tax and working days. From the card you can duplicate it, archive it, export or import it as JSON and move it to the trash. |
 | **Tasks with no depth limit** | A virtualized tree with WBS codes (1, 1.1, 1.1.1…) that stays smooth with thousands of tasks. It is edited with the keyboard, like an outliner. |
 | **Task data** | Status, priority, assignee, story points, estimated hours, own rate and description. Hours accept several formats: `1.5`, `90m`, `1h 30m` or `2d`. |
+| **Hours from story points** | Each project can have a scale (“1 point = 2 h”, rule of three, with exceptions such as “5 points = 8 h”). Tasks with story points and no hours typed by hand take their hours from it, and changing the scale updates them all. |
 | **Shared subtasks** | A subtask can hang from several tasks and still counts once. The app shows how much double counting was avoided. |
 | **Team and workload** | Each person has a role, a rate and working hours per day. The workload view splits the work per person and works out the project duration and end date. |
 | **Kanban board** | One column per status. Drag a card to change the status of its task. |
@@ -87,6 +88,7 @@ There are two executables. They are built into `release/` with `pnpm dist:win` (
 
 - **Create a project.** Click “New project” and enter the name, client and currency. Everything else is set later in “Project settings”:
   - default rate and working hours per day;
+  - story points → hours scale;
   - contingency (%) and tax (%);
   - start date and working days;
   - quote number, date, validity and terms.
@@ -121,7 +123,7 @@ There are two executables. They are built into `release/` with `pnpm dist:win` (
 
 | Column | Meaning |
 |---|---|
-| **Own** | Hours of the task itself, without its subtasks. |
+| **Own** | Hours of the task itself, without its subtasks: typed by hand, or in grey when they come from its story points. |
 | **Σ Hours / Σ Cost** | What the branch contributes to the total. That is why the rows can be added up (see [calculations](#domain-model-and-calculations)). |
 | **+X h 🔗** | Hours of shared subtasks this branch also needs but that are counted in another branch. |
 
@@ -167,6 +169,19 @@ Deleting a reference (“Remove from here” or **Del**) only removes it from th
   - `2d` or `2 days` (days of the project's hours per day).
 - **Story points.** There are quick buttons (1, 2, 3, 5, 8, 13), and any value can be typed.
 - **Duration.** It comes from each person's workload (see [calculations](#duration-and-end-date)).
+
+#### Hours from story points
+
+Instead of typing the hours of every task, you can let the story points set them. In Project settings → Story points:
+
+- **The base.** Write how much **1 point** is worth (`2h`, `90m`, `1.5`…). Every other value follows the rule of three: 5 points = 5 × 2 h = 10 h.
+- **Exceptions.** Each row of the scale (2, 3, 5, 8, 13) shows what the rule of three gives; type a value to change it, for example 5 points = 8 h. Values outside the scale (4, 0.5, 21…) always follow the rule of three.
+- **Automatic hours.** A task with story points and no hours typed by hand takes its hours from the scale. They show in grey in the tree, and the detail panel says where they come from. Changing the scale updates all of them at once, and it can be undone.
+- **Typed hours win.** Typing hours in a task overrides the scale for that task. Empty the field, or use “Use story points” in the detail panel, to go back to the story points.
+- **Off by default.** New projects start without a scale. Leaving 1 point empty turns it off: hours then only come from what you type.
+- Parent tasks: their own story points give them own hours too, in addition to those of their subtasks, just like typed hours.
+
+<img src="docs/images/story-points.png" alt="Story points scale in the project settings" width="720">
 
 ### Views
 
@@ -563,7 +578,7 @@ That way there are no floating-point errors when adding up.
 
 | Entity | Contents |
 |---|---|
-| **ProjectMeta** | Name, client, color, currency, default rate, hours per day, contingency, tax, start, working days, quote details, and whether it is archived. |
+| **ProjectMeta** | Name, client, color, currency, default rate, hours per day, contingency, tax, start, working days, story points scale, quote details, and whether it is archived. |
 | **Task** | Title, description, status, priority, assignee, story points, estimated minutes and own rate. |
 | **Member** | Name, role, rate, hours per day and color. |
 | **TaskGraph** | Structure of the project: an acyclic directed graph with ordered roots and children. `parents(t)[0]` is the **primary parent** of `t`. |
@@ -595,6 +610,8 @@ Let:
 - `primary(c)`: the primary parent of `c`.
 
 ```
+minutes(t)       = hours typed in t  ??  scale(story points of t)  ??  unestimated
+scale(p)         = exception(p)  ??  round(p × minutes of 1 point)       (no scale = nothing)
 rate(t)          = rate of t  ??  rate of the assignee  ??  default rate of the project
 cost(t)          = round(minutes(t) × rate(t) / 60)
 
@@ -674,8 +691,12 @@ The folder is chosen in this order of priority:
 ```json
 {
   "format": "planner.project",
-  "schemaVersion": 1,
-  "meta": { "id": "…", "name": "ACME online store", "currency": "EUR", "contingencyBps": 1000, "…": "…" },
+  "schemaVersion": 2,
+  "meta": {
+    "id": "…", "name": "ACME online store", "currency": "EUR", "contingencyBps": 1000,
+    "pointScale": { "minutesPerPoint": 180, "overrides": [{ "points": 13, "minutes": 2160 }] },
+    "…": "…"
+  },
   "members": [{ "id": "…", "name": "Anna Brooks", "rateCents": 5000, "hoursPerDay": 7, "…": "…" }],
   "tasks": [{ "id": "…", "title": "Login", "estimateMinutes": 120, "assigneeId": "…", "…": "…" }],
   "structure": {
@@ -694,8 +715,8 @@ When reading, the file is validated with zod (`infrastructure/validation/schemas
 - **Atomic writes.** The file is written to `<id>.json.tmp`, flushed to disk (`fsync`) and renamed. Before that, the previous version is kept as `.bak`. A power cut never leaves a half-written file.
 - **Recovery.** If the main file cannot be read, `.tmp` is tried and then `.bak`. Unreadable files are moved to `quarantine/`.
 - **Format versions.**
-  - A file from an **older** version is migrated when opened (`MIGRATIONS` in `codec.ts`).
-  - One from a **newer** version opens read-only, so it is not damaged.
+  - A file from an **older** version is migrated when opened (`MIGRATIONS` in `codec.ts`). Version 2 added `meta.pointScale`; version 1 files open without a scale (`null`).
+  - One from a **newer** version opens read-only, so it is not damaged. An app from before version 2 opening a newer file ignores its scale, so it shows no hours from story points.
 - **Settings.** `settings.json` is read field by field: an invalid value falls back to its default without losing the rest.
 
 ---
@@ -783,7 +804,7 @@ pnpm test:e2e
 
 | Type | Where | What it covers |
 |---|---|---|
-| **Domain** | `tests/unit/domain` | Graph (cycles, moves, primary parent, WBS codes), command reducer, durations, estimation and error reasons. |
+| **Domain** | `tests/unit/domain` | Graph (cycles, moves, primary parent, WBS codes), command reducer, durations, estimation, story points scale and error reasons. |
 | **Properties** | fast-check in the domain, application and shared tests | Invariants after random command sequences: no cycles, `naive − total = savings`, undo and redo return to the same state, deltas rebuild exactly the state of the main process, and typed numbers read back unchanged in both languages. |
 | **Performance** | `tests/unit/domain/estimation/perf.test.ts` | `estimate` with 5,000 tasks. |
 | **Application** | `tests/unit/application` | Sessions and deltas, catalog (duplicate and import with new ids and clamped names) and report model (the table adds up to the total). |
@@ -791,7 +812,7 @@ pnpm test:e2e
 | **Infrastructure** | `tests/unit/infrastructure` | JSON repository (atomic writes, recovery, quarantine, backups), PDF HTML in both languages (escaping, descriptions, placeholders, file name), zod schemas and the stored language read at startup. |
 | **Presentation** | `tests/unit/presentation` | Flattening the tree into rows and the queue of keys typed while a task is being created. |
 | **i18n** | `tests/unit/i18n` | Catalogs complete in both languages and code written in English. |
-| **E2E** | `tests/e2e` | The real app with Playwright: planning with the keyboard, sharing a subtask without double counting, undo, PDF export, persistence after restarting, team, descriptions, and switching the language of the interface and of the PDF. |
+| **E2E** | `tests/e2e` | The real app with Playwright: planning with the keyboard, sharing a subtask without double counting, undo, PDF export, persistence after restarting, team, descriptions, hours from story points, and switching the language of the interface and of the PDF. |
 
 The E2E tests start the built app with a temporary data folder (`PLANNER_DATA_DIR`), automatic dialogs (`PLANNER_E2E_DIR`), a temporary Chromium profile and a fixed language, so they do not depend on the machine.
 

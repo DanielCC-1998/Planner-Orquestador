@@ -17,7 +17,7 @@ export const en = {
   /** Tooltips of the column headers. */
   columnTips: {
     storyPoints: 'Story points (sum of its branch, without double-counting shared subtasks)',
-    own: 'Hours of the task’s OWN work, in addition to those of its subtasks. Double-click to edit.',
+    own: 'Hours of the task’s OWN work, in addition to those of its subtasks: typed by hand or, in grey, taken from its story points through the project scale. Double-click to edit; leave it empty to go back to the story points.',
     sumHours:
       'Contribution of the branch to the total: each shared subtask counts only under its primary task (★), so the rows can be added up. “+X h 🔗” marks shared hours it also needs but that count in another branch.',
     sumCost: 'Cost of the contribution (hours × applicable rate)'
@@ -47,6 +47,8 @@ export const en = {
     sharedPrimary: (count: number) => `Shared in ${count} tasks. This is where it counts (★).`,
     /** Badge of a reference: the code of its primary appearance. */
     see: (code: string) => `see ${code}`,
+    /** Tooltip of hours that come from the story points. */
+    fromPoints: (points: string) => `From ${points} story points (project scale)`,
     subtasks: (n: number) => (n === 1 ? '1 subtask' : `${n} subtasks`),
     moreActions: 'More actions',
     branchNeeds: (total: string, extra: string) =>
@@ -134,7 +136,7 @@ export const es: typeof en = {
   },
   columnTips: {
     storyPoints: 'Puntos de historia (suma de su rama, sin duplicar compartidas)',
-    own: 'Horas de trabajo PROPIO de la tarea, además de las de sus subtareas. Doble clic para editar.',
+    own: 'Horas de trabajo PROPIO de la tarea, además de las de sus subtareas: escritas a mano o, en gris, sacadas de sus puntos con la escala del proyecto. Doble clic para editar; vacía el campo para volver a los puntos.',
     sumHours:
       'Aportación de la rama al total: cada subtarea compartida cuenta solo bajo su tarea principal (★), así que las filas se pueden sumar. «+X h 🔗» indica horas compartidas que también necesita pero que cuentan en otra rama.',
     sumCost: 'Coste de la aportación (horas × tarifa aplicable)'
@@ -161,6 +163,7 @@ export const es: typeof en = {
       `Compartida en ${count} tareas. Aquí es una referencia: sus horas cuentan en ${code}.`,
     sharedPrimary: (count) => `Compartida en ${count} tareas. Aquí es donde cuenta (★).`,
     see: (code) => `ver ${code}`,
+    fromPoints: (points) => `Desde ${points} puntos de historia (escala del proyecto)`,
     subtasks: (n) => (n === 1 ? '1 subtarea' : `${n} subtareas`),
     moreActions: 'Más acciones',
     branchNeeds: (total, extra) =>

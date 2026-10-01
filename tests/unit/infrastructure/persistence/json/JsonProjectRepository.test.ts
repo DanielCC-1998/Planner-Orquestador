@@ -154,3 +154,76 @@ describe('JsonProjectRepository', () => {
     expect(await readdir(r.projectsDir)).toContain(`${state.meta.id}.json`)
   })
 })
+
+describe('codec: format version 2 (story point scale)', () => {
+  /** A project saved by version 1 of the format, written out by hand: it must keep opening. */
+  const V1_DOCUMENT = {
+    format: 'planner.project',
+    schemaVersion: 1,
+    meta: {
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Version 1 project',
+      client: '',
+      description: '',
+      color: '#6366f1',
+      currency: 'EUR',
+      defaultRateCents: 5000,
+      defaultHoursPerDay: 8,
+      startDate: null,
+      workingWeekdays: [1, 2, 3, 4, 5],
+      contingencyBps: 0,
+      taxBps: 0,
+      taxLabel: 'VAT',
+      quote: { number: '', date: null, validityDays: 30, terms: '' },
+      archived: false,
+      createdAt: '2026-09-01T10:00:00.000Z',
+      updatedAt: '2026-09-01T10:00:00.000Z'
+    },
+    members: [],
+    tasks: [
+      {
+        id: '22222222-2222-4222-8222-222222222222',
+        title: 'Login',
+        description: '',
+        status: 'todo',
+        priority: 'medium',
+        storyPoints: 3,
+        estimateMinutes: null,
+        assigneeId: null,
+        rateCents: null,
+        tags: [],
+        createdAt: '2026-09-01T10:00:00.000Z',
+        updatedAt: '2026-09-01T10:00:00.000Z'
+      }
+    ],
+    structure: { roots: ['22222222-2222-4222-8222-222222222222'], children: {}, parents: {} }
+  }
+
+  it('a version 1 file is migrated: no scale, so story points give no hours', () => {
+    const decoded = decodeProject(JSON.stringify(V1_DOCUMENT))
+    expect(decoded.ok).toBe(true)
+    if (!decoded.ok) return
+    expect(decoded.value).toMatchObject({ readOnly: false, migratedFrom: 1 })
+    expect(decoded.value.state.meta.pointScale).toBeNull()
+    expect(estimate(decoded.value.state).total).toMatchObject({ minutes: 0, unestimated: 1 })
+  })
+
+  it('the scale is saved with the project and read back', () => {
+    const { state } = loginSignupScenario()
+    const scaled = { ...state, meta: { ...state.meta, pointScale: { minutesPerPoint: 120, overrides: [{ points: 5, minutes: 480 }] } } }
+    const text = encodeProject(scaled)
+    expect(JSON.parse(text).schemaVersion).toBe(2)
+    const decoded = decodeProject(text)
+    expect(decoded.ok && decoded.value.state.meta.pointScale).toEqual(scaled.meta.pointScale)
+  })
+
+  it('an invalid scale in a file is reported as invalid project data', () => {
+    const { state } = loginSignupScenario()
+    const doc = JSON.parse(encodeProject(state))
+    const broken = { ...doc, meta: { ...doc.meta, pointScale: { minutesPerPoint: 60, overrides: [{ points: 1, minutes: 30 }] } } }
+    expect(decodeProject(JSON.stringify(broken))).toMatchObject({
+      ok: false,
+      error: { code: 'CORRUPT', reason: 'INVALID_PROJECT_DATA', params: { detail: expect.stringContaining('meta.pointScale') } }
+    })
+  })
+})

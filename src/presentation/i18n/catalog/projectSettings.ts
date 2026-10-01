@@ -3,7 +3,24 @@ export const en = {
   title: 'Project settings',
   saved: 'Project settings saved',
   checkFields: 'Check the highlighted fields',
-  tabs: { general: 'General', planning: 'Planning and costs', quote: 'Quote (PDF)' },
+  tabs: { general: 'General', planning: 'Planning and costs', points: 'Story points', quote: 'Quote (PDF)' },
+  /** Story points → hours scale. */
+  points: {
+    intro:
+      'Tasks with story points and no hours typed by hand take their hours from this scale. Changing it updates all of them.',
+    pointsColumn: 'Story points',
+    hoursColumn: 'Hours',
+    /** `points` is already formatted. */
+    points: (points: string) => (points === '1' ? '1 point' : `${points} points`),
+    hoursFor: (points: string) => (points === '1' ? 'Hours for 1 story point' : `Hours for ${points} story points`),
+    basePlaceholder: 'e.g. 2h',
+    baseHint: 'Base of the scale',
+    byRule: 'Rule of three',
+    useRule: 'Use the rule of three',
+    otherValues: 'Any other value follows the rule of three: points × the hours of 1 point.',
+    offHint: 'Leave 1 point empty to turn the scale off: hours then only come from what you type in each task.',
+    mustBePositive: 'One point must be worth more than 0'
+  },
   name: 'Name',
   nameRequired: 'The name is required',
   client: 'Client',
@@ -58,7 +75,22 @@ export const es: typeof en = {
   title: 'Ajustes del proyecto',
   saved: 'Ajustes del proyecto guardados',
   checkFields: 'Revisa los campos marcados',
-  tabs: { general: 'General', planning: 'Planificación y costes', quote: 'Presupuesto (PDF)' },
+  tabs: { general: 'General', planning: 'Planificación y costes', points: 'Puntos de historia', quote: 'Presupuesto (PDF)' },
+  points: {
+    intro:
+      'Las tareas con puntos de historia y sin horas escritas a mano toman sus horas de esta escala. Si la cambias, se actualizan todas.',
+    pointsColumn: 'Puntos',
+    hoursColumn: 'Horas',
+    points: (points) => (points === '1' ? '1 punto' : `${points} puntos`),
+    hoursFor: (points) => (points === '1' ? 'Horas para 1 punto de historia' : `Horas para ${points} puntos de historia`),
+    basePlaceholder: 'p. ej. 2h',
+    baseHint: 'Base de la escala',
+    byRule: 'Regla de tres',
+    useRule: 'Usar la regla de tres',
+    otherValues: 'Cualquier otro valor sigue la regla de tres: puntos × las horas de 1 punto.',
+    offHint: 'Deja vacío 1 punto para desactivar la escala: entonces las horas solo salen de lo que escribas en cada tarea.',
+    mustBePositive: 'Un punto tiene que valer más de 0'
+  },
   name: 'Nombre',
   nameRequired: 'El nombre es obligatorio',
   client: 'Cliente',

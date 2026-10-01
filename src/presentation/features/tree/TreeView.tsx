@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, type KeyboardEvent } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { HelpCircle, ListTree, Plus } from 'lucide-react'
-import { branchTaskIds, codeDepth, sumMetrics, ZERO_METRICS, type Estimation } from '@domain'
+import { branchTaskIds, codeDepth, effectiveEstimate, sumMetrics, ZERO_METRICS, type Estimation } from '@domain'
 import { Button } from '../../components/ui/button'
 import { EmptyState, Kbd, Tooltip } from '../../components/ui/misc'
 import { useI18n } from '../../i18n'
@@ -297,6 +297,7 @@ export function TreeView() {
                     row={row}
                     task={task}
                     own={est.own.get(row.id) ?? ZERO_METRICS}
+                    estimateSource={effectiveEstimate(task, state.meta.pointScale).source}
                     attr={est.attributed.get(row.id) ?? ZERO_METRICS}
                     branchMinutes={branchMinutes(row)}
                     member={task.assigneeId ? state.members.get(task.assigneeId) : undefined}

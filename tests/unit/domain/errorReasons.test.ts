@@ -87,6 +87,10 @@ const CASES: Readonly<Record<DomainErrorReason, Case>> = {
   DURATION_UNIT: { code: 'INVALID', result: () => parseDuration('2 weeks', 8), params: { unit: 'weeks' } },
   DURATION_NEGATIVE: { code: 'INVALID', result: () => parseDuration('1d', -8) },
   DURATION_TOO_LARGE: { code: 'INVALID', result: () => parseDuration('100001h', 8) },
+  INVALID_POINT_SCALE: {
+    code: 'INVALID',
+    result: () => updateProject({ pointScale: { minutesPerPoint: 120, overrides: [{ points: 1, minutes: 60 }] } })
+  },
   CYCLE_MOVE: {
     code: 'CYCLE',
     result: () => run({ type: 'edge.move', childId: ids.login, fromParentId: null, toParentId: ids.form, index: 0 })

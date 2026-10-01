@@ -75,7 +75,7 @@ const tasks = ids.map((id) => {
 const projectId = randomUUID()
 const doc = {
   format: 'planner.project',
-  schemaVersion: 1,
+  schemaVersion: 2,
   meta: {
     id: projectId,
     name: `Large project (${n} tasks)`,
@@ -90,6 +90,7 @@ const doc = {
     contingencyBps: 1000,
     taxBps: 2100,
     taxLabel: '',
+    pointScale: null,
     quote: { number: 'P-BIG', date: null, validityDays: 30, terms: '' },
     archived: false,
     createdAt: now,

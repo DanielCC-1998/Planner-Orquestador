@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { LANGUAGES, PRIORITIES, TASK_STATUSES } from '@domain'
+import { LANGUAGES, MAX_ESTIMATE_MINUTES, MAX_POINT_OVERRIDES, PRIORITIES, TASK_STATUSES } from '@domain'
 import { LANGUAGE_PREFERENCES } from '@application'
 
 /**
@@ -11,6 +11,21 @@ export const IsoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid da
 const Cents = z.number().int().min(0).max(1_000_000_000)
 const Bps = z.number().int().min(0).max(100_000)
 const Color = z.string().regex(/^#[0-9a-f]{6}$/i)
+const Minutes = z.number().int().min(0).max(MAX_ESTIMATE_MINUTES)
+
+/** Story points → hours scale of a project (see the domain's PointScale). */
+export const PointScaleSchema = z
+  .object({
+    minutesPerPoint: Minutes.min(1),
+    overrides: z
+      .array(z.object({ points: z.number().gt(0).max(10_000), minutes: Minutes }))
+      .max(MAX_POINT_OVERRIDES)
+  })
+  .superRefine((scale, ctx) => {
+    const points = scale.overrides.map((o) => o.points)
+    if (points.includes(1)) ctx.addIssue({ code: 'custom', message: 'One point is the base, not an exception' })
+    if (new Set(points).size !== points.length) ctx.addIssue({ code: 'custom', message: 'Repeated story points' })
+  })
 
 export const TaskSchema = z.object({
   id: IdSchema,
@@ -58,6 +73,7 @@ export const MetaSchema = z.object({
   contingencyBps: Bps,
   taxBps: Bps,
   taxLabel: z.string().max(20),
+  pointScale: PointScaleSchema.nullable(),
   quote: QuoteSchema,
   archived: z.boolean(),
   createdAt: z.string(),

@@ -11,7 +11,24 @@ import {
   X,
   ZoomIn
 } from 'lucide-react'
-import { branchTaskIds, effectiveRate, formatDurationInput, parseDuration, PRIORITIES, progressOf, scheduleFor, sumMetrics, TASK_STATUSES, workloadFor, type Priority, type TaskPatch, type TaskStatus } from '@domain'
+import {
+  branchTaskIds,
+  effectiveEstimate,
+  effectiveRate,
+  formatDurationInput,
+  minutesForPoints,
+  parseDuration,
+  POINT_SCALE_VALUES,
+  PRIORITIES,
+  progressOf,
+  scheduleFor,
+  sumMetrics,
+  TASK_STATUSES,
+  workloadFor,
+  type Priority,
+  type TaskPatch,
+  type TaskStatus
+} from '@domain'
 import { DraftInput, DraftTextarea } from '../../components/DraftField'
 import { Rich } from '../../components/Rich'
 import { Button } from '../../components/ui/button'
@@ -25,7 +42,6 @@ import { useUi } from '../../stores/ui'
 import * as actions from '../tree/actions'
 import { canonicalKey, canonicalPath, type TreeRow } from '../tree/flatten'
 
-const FIBONACCI = [1, 2, 3, 5, 8, 13]
 
 /** Synthetic row to reuse the tree actions from the panel (canonical appearance). */
 function canonicalRow(id: string): TreeRow | null {
@@ -110,6 +126,20 @@ export function TaskDetailPanel() {
   const parents = state.graph.parents(id)
   const children = state.graph.children(id)
   const rate = effectiveRate(task, state)
+  // Hours of the task itself: typed by hand, or from its story points through the project scale.
+  const estimate = effectiveEstimate(task, state.meta.pointScale)
+  const scale = state.meta.pointScale
+  const fromPoints = task.storyPoints === null ? null : minutesForPoints(task.storyPoints, scale)
+  const estimateHint =
+    estimate.source === 'points'
+      ? t.detail.fromPoints(f.storyPoints(task.storyPoints!))
+      : estimate.source === 'manual' && fromPoints !== null
+        ? t.detail.manualOverride
+        : estimate.source === null && task.storyPoints !== null && scale === null
+          ? t.detail.noScaleHint
+          : children.length > 0
+            ? t.detail.ownWorkHint
+            : t.detail.durationHint
   const members = [...state.members.values()]
   const inheritedRate = (() => {
     const member = task.assigneeId ? state.members.get(task.assigneeId) : undefined
@@ -216,23 +246,33 @@ export function TaskDetailPanel() {
 
         <Section title={t.detail.estimate}>
           <div className="grid grid-cols-2 gap-3">
-            <Field
-              label={children.length > 0 ? t.detail.ownWork : t.detail.estimatedHours}
-              hint={children.length > 0 ? t.detail.ownWorkHint : t.detail.durationHint}
-            >
-              <DraftInput
-                key={`est-${id}`}
-                value={formatDurationInput(task.estimateMinutes)}
-                disabled={readOnly}
-                placeholder={t.detail.unestimated}
-                onCommit={(text) => {
-                  const r = parseDuration(text, state.meta.defaultHoursPerDay)
-                  if (!r.ok) return describeError(r.error)
-                  void patch({ estimateMinutes: r.value })
-                  return null
-                }}
-              />
-            </Field>
+            <div className="flex flex-col gap-1">
+              <Field label={children.length > 0 ? t.detail.ownWork : t.detail.estimatedHours} hint={estimateHint}>
+                {/* Only typed hours are the value: the ones from story points are a placeholder, so
+                    confirming the field never turns them into typed hours by accident. */}
+                <DraftInput
+                  key={`est-${id}`}
+                  value={formatDurationInput(task.estimateMinutes)}
+                  disabled={readOnly}
+                  placeholder={estimate.source === 'points' ? f.hours(estimate.minutes!) : t.detail.unestimated}
+                  onCommit={(text) => {
+                    const r = parseDuration(text, state.meta.defaultHoursPerDay)
+                    if (!r.ok) return describeError(r.error)
+                    void patch({ estimateMinutes: r.value })
+                    return null
+                  }}
+                />
+              </Field>
+              {estimate.source === 'manual' && fromPoints !== null && !readOnly ? (
+                <button
+                  type="button"
+                  onClick={() => void patch({ estimateMinutes: null })}
+                  className="self-start text-xs font-medium text-primary hover:underline"
+                >
+                  {t.detail.useStoryPoints(f.hours(fromPoints))}
+                </button>
+              ) : null}
+            </div>
             <Field
               label={t.detail.rate(f.currencySymbol(currency))}
               hint={task.rateCents === null ? (inheritedRate?.hint ?? t.detail.noRate) : t.detail.ownRate}
@@ -251,7 +291,7 @@ export function TaskDetailPanel() {
                 }}
               />
             </Field>
-            <Field label={t.detail.storyPoints} className="col-span-2">
+            <Field label={children.length > 0 ? t.detail.ownStoryPoints : t.detail.storyPoints} className="col-span-2">
               <div className="flex items-center gap-1.5">
                 <div className="w-20">
                   <DraftInput
@@ -268,7 +308,7 @@ export function TaskDetailPanel() {
                     }}
                   />
                 </div>
-                {FIBONACCI.map((n) => (
+                {POINT_SCALE_VALUES.map((n) => (
                   <button
                     key={n}
                     type="button"

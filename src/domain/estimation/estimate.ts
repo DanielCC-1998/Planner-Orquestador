@@ -5,6 +5,7 @@ import { applyBps, costOf, moneyBreakdown, type MoneyBreakdown } from '../common
 import type { IsoDate, MemberId, TaskId } from '../common/primitives'
 import type { ProjectMeta, ProjectState } from '../project/Project'
 import type { Task } from '../task/Task'
+import { minutesForPoints, type PointScale } from './pointScale'
 import {
   accumulate,
   accumulator,
@@ -31,9 +32,30 @@ export function effectiveRate(task: Task, state: ProjectState): EffectiveRate {
   return { rateCents: null, source: null }
 }
 
+export type EstimateSource = 'manual' | 'points' | null
+
+export interface EffectiveEstimate {
+  readonly minutes: number | null
+  readonly source: EstimateSource
+}
+
+/**
+ * Hours of the task itself: the ones typed by hand; otherwise its story points through the
+ * project scale; otherwise none (unestimated).
+ */
+export function effectiveEstimate(task: Task, scale: PointScale | null): EffectiveEstimate {
+  if (task.estimateMinutes !== null) return { minutes: task.estimateMinutes, source: 'manual' }
+  if (task.storyPoints !== null) {
+    const minutes = minutesForPoints(task.storyPoints, scale)
+    if (minutes !== null) return { minutes, source: 'points' }
+  }
+  return { minutes: null, source: null }
+}
+
 /** Metrics of a task's OWN work (without subtasks). */
 export function ownMetrics(task: Task, state: ProjectState): Metrics {
-  const minutes = task.estimateMinutes ?? 0
+  const estimate = effectiveEstimate(task, state.meta.pointScale)
+  const minutes = estimate.minutes ?? 0
   const { rateCents } = effectiveRate(task, state)
   const isLeaf = state.graph.children(task.id).length === 0
   const isDone = task.status === 'done'
@@ -44,7 +66,7 @@ export function ownMetrics(task: Task, state: ProjectState): Metrics {
     doneMinutes: isDone ? minutes : 0,
     tasks: 1,
     doneTasks: isDone ? 1 : 0,
-    unestimated: isLeaf && task.estimateMinutes === null ? 1 : 0,
+    unestimated: isLeaf && estimate.minutes === null ? 1 : 0,
     unpriced: minutes > 0 && rateCents === null ? 1 : 0,
     unassigned: minutes > 0 && !task.assigneeId ? 1 : 0
   }
