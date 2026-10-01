@@ -2,15 +2,78 @@ import {
   addCalendarDays,
   codeDepth,
   codePrefix,
+  compareCodes,
   effectiveRate,
   estimate,
   isoDateOf,
+  sprintAnchor,
+  sprintChanges,
+  tagsOfTask,
+  TASK_STATUSES,
   type Estimation,
   type ProjectState,
-  type TaskId
+  type Task,
+  type TaskId,
+  type TaskStatus
 } from '@domain'
 import type { Issuer } from '../settings/Settings'
-import type { ReportModel, ReportOptions, ReportRow } from './ReportModel'
+import type { ReportLaneTask, ReportModel, ReportOptions, ReportProgress, ReportRow, ReportTag } from './ReportModel'
+
+/** Tags of a task as printed, in the order of the project's list. */
+function tagsOf(state: ProjectState, task: Task): ReportTag[] {
+  return tagsOfTask(state.meta.tags, task.tagIds).map((t) => ({ name: t.name, color: t.color }))
+}
+
+/**
+ * "Task status" section: every task (parents too, whatever the breakdown depth) in a lane by
+ * status, and the net status changes of each sprint up to the one that contains `today`.
+ */
+function buildProgress(
+  state: ProjectState,
+  est: Estimation,
+  today: string,
+  localDate: (at: string) => string
+): ReportProgress {
+  const codeOf = (id: TaskId) => est.codes.get(id) ?? '?'
+  const ids = [...state.tasks.keys()].sort((a, b) => compareCodes(codeOf(a), codeOf(b)))
+  const lanes = Object.fromEntries(TASK_STATUSES.map((s) => [s, [] as ReportLaneTask[]])) as Record<TaskStatus, ReportLaneTask[]>
+  for (const id of ids) {
+    const task = state.tasks.get(id)!
+    lanes[task.status].push({
+      code: codeOf(id),
+      title: task.title,
+      isParent: state.graph.children(id).length > 0,
+      tags: tagsOf(state, task)
+    })
+  }
+  const sprintStart = sprintAnchor(state.meta, localDate)
+  const settings = state.meta.sprints
+  const sprints =
+    settings === null
+      ? []
+      : sprintChanges(state.tasks.values(), sprintStart, settings, today, localDate).map((sprint) => ({
+          number: sprint.number,
+          start: sprint.start,
+          end: sprint.end,
+          current: sprint.current,
+          changes: sprint.changes
+            .map((c) => {
+              const task = state.tasks.get(c.taskId)!
+              return { code: codeOf(c.taskId), title: task.title, from: c.from, to: c.to, direction: c.direction, tags: tagsOf(state, task) }
+            })
+            .sort((a, b) => compareCodes(a.code, b.code))
+        }))
+  return { asOf: today, lanes, sprintSettings: settings, sprintStart, sprints }
+}
+
+/** What the report needs besides the project: the time, and the estimation if it is already computed. */
+export interface ReportContext {
+  /** ISO timestamp of the report. */
+  readonly now: string
+  /** Calendar date of a timestamp for the user (the report date and the sprints); UTC by default. */
+  readonly localDate?: ((at: string) => string) | undefined
+  readonly estimation?: Estimation | undefined
+}
 
 /**
  * Builds the PDF model. The breakdown walks the forest of primary parents: each task appears
@@ -20,13 +83,10 @@ import type { ReportModel, ReportOptions, ReportRow } from './ReportModel'
  * Texts are raw data (titles may be '', the unassigned group has no name): the renderer adds
  * the localized placeholders, because the application layer does not know about languages.
  */
-export function buildReportModel(
-  state: ProjectState,
-  options: ReportOptions,
-  issuer: Issuer,
-  now: string,
-  est: Estimation = estimate(state)
-): ReportModel {
+export function buildReportModel(state: ProjectState, options: ReportOptions, issuer: Issuer, context: ReportContext): ReportModel {
+  const { now } = context
+  const est = context.estimation ?? estimate(state)
+  const localDate = context.localDate ?? isoDateOf
   const { graph, meta } = state
   const codes = est.codes
   const memberName = (id: string | null) => (id ? (state.members.get(id)?.name ?? null) : null)
@@ -57,6 +117,7 @@ export function buildReportModel(
       code,
       depth,
       title: title(id),
+      tags: tagsOf(state, task),
       assignee: memberName(task.assigneeId),
       status: task.status,
       storyPoints: metrics.storyPoints,
@@ -128,7 +189,8 @@ export function buildReportModel(
     savedCents: s.saved.costCents
   }))
 
-  const quoteDate = meta.quote.date ?? isoDateOf(now)
+  const today = localDate(now)
+  const quoteDate = meta.quote.date ?? today
   return {
     generatedAt: now,
     options,
@@ -167,6 +229,7 @@ export function buildReportModel(
       progress: est.progress
     },
     rows,
+    progress: options.columns.status ? buildProgress(state, est, today, localDate) : null,
     workload,
     shared,
     team: [...state.members.values()].map((m) => ({

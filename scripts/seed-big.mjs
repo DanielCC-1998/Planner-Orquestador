@@ -54,19 +54,26 @@ for (let k = 0; k < n / 10; k++) {
 }
 
 const statuses = ['todo', 'todo', 'in_progress', 'review', 'done']
+const tags = [
+  { id: 'tag-1', name: 'Frontend', color: 'blue' },
+  { id: 'tag-2', name: 'Backend', color: 'violet' },
+  { id: 'tag-3', name: 'Risk', color: 'red' }
+]
 const tasks = ids.map((id) => {
   const leaf = !children[id]
+  const status = statuses[rnd(statuses.length)]
   return {
     id,
     title: `${WORDS[rnd(WORDS.length)]} ${THINGS[rnd(THINGS.length)]} ${rnd(900) + 100}`,
     description: '',
-    status: statuses[rnd(statuses.length)],
+    status,
     priority: ['low', 'medium', 'medium', 'high', 'critical'][rnd(5)],
     storyPoints: leaf ? [1, 2, 3, 5, 8][rnd(5)] : null,
     estimateMinutes: leaf ? (1 + rnd(16)) * 30 : null,
     assigneeId: leaf ? members[rnd(members.length)].id : null,
     rateCents: null,
-    tags: [],
+    tagIds: leaf && rnd(3) === 0 ? [tags[rnd(tags.length)].id] : [],
+    statusHistory: [{ at: now, from: null, to: status }],
     createdAt: now,
     updatedAt: now
   }
@@ -75,7 +82,7 @@ const tasks = ids.map((id) => {
 const projectId = randomUUID()
 const doc = {
   format: 'planner.project',
-  schemaVersion: 2,
+  schemaVersion: 3,
   meta: {
     id: projectId,
     name: `Large project (${n} tasks)`,
@@ -91,6 +98,8 @@ const doc = {
     taxBps: 2100,
     taxLabel: '',
     pointScale: null,
+    sprints: { length: 2, unit: 'week' },
+    tags,
     quote: { number: 'P-BIG', date: null, validityDays: 30, terms: '' },
     archived: false,
     createdAt: now,

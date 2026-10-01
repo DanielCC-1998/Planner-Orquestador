@@ -52,7 +52,8 @@ function bigProject(n = 5000): ProjectState {
       estimateMinutes: 30 + rnd(480),
       assigneeId: null,
       rateCents: null,
-      tags: [],
+      tagIds: [],
+      statusHistory: [],
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z'
     })

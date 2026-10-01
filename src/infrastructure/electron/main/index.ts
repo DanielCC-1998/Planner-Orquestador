@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron'
 import { LOCALE_OF, resolveLanguage } from '@shared/i18n/language'
 import { automaticDialogs, electronDialogs } from '../../ipc/dialogs'
@@ -87,7 +87,8 @@ async function start(): Promise<void> {
   const e2eOpen = process.env['PLANNER_E2E_OPEN']
   registerIpc(ipcMain, {
     ...container,
-    dialogs: e2eDir ? automaticDialogs(e2eDir, e2eOpen ? [e2eOpen] : []) : electronDialogs(() => mainWindow),
+    // PLANNER_E2E_OPEN: files the open dialog returns in turn (separated like PATH: ';' on Windows).
+    dialogs: e2eDir ? automaticDialogs(e2eDir, e2eOpen ? e2eOpen.split(delimiter).filter(Boolean) : []) : electronDialogs(() => mainWindow),
     info: () => ({ version: app.getVersion(), dataDir: location.dir, portable: location.portable, systemLocales: locales }),
     uiLanguage: async () => resolveLanguage((await container!.settings.get()).language, locales),
     openDataDir: async () => {

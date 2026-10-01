@@ -50,6 +50,8 @@ const SAME_IN_BOTH = new Set([
   'Color',
   'General',
   'Zoom',
+  'Sprint',
+  'Sprints',
   'incl.',
   'cont.'
 ])

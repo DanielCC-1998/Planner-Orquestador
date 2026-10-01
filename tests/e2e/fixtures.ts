@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { delimiter, join, resolve } from 'node:path'
 import { _electron, test as base, type ElectronApplication, type Locator, type Page } from '@playwright/test'
 import electronPath from 'electron'
 import type { Language } from '@domain'
@@ -15,16 +15,46 @@ interface Fixtures {
  * Starts the built app on `dataDir` with automatic dialogs, its own Chromium profile and a fixed
  * interface language, so a run depends neither on the machine (OS language) nor on earlier runs.
  * The language is only written on the first launch: a relaunch keeps what the test changed.
+ * `open`: files the "open" dialog returns, one per call (e.g. backups to import).
  */
-export function launchApp(dataDir: string, options: { language?: Language } = {}): Promise<ElectronApplication> {
+export function launchApp(dataDir: string, options: { language?: Language; open?: readonly string[] } = {}): Promise<ElectronApplication> {
   mkdirSync(dataDir, { recursive: true })
   const settings = join(dataDir, 'settings.json')
   if (!existsSync(settings)) writeFileSync(settings, JSON.stringify({ language: options.language ?? 'en' }))
   return _electron.launch({
     executablePath: electronPath as unknown as string,
     args: [`--user-data-dir=${join(dataDir, 'user-data')}`, resolve('out/main/index.js')],
-    env: { ...process.env, PLANNER_DATA_DIR: dataDir, PLANNER_E2E_DIR: dataDir }
+    env: {
+      ...process.env,
+      PLANNER_DATA_DIR: dataDir,
+      PLANNER_E2E_DIR: dataDir,
+      ...(options.open ? { PLANNER_E2E_OPEN: options.open.join(delimiter) } : {})
+    }
   })
+}
+
+/** Creates a project with top-level tasks through the bridge (faster than typing them). */
+export async function seedProject(page: Page, name: string, tasks: ReadonlyArray<Record<string, unknown>>): Promise<string> {
+  return page.evaluate(
+    async ({ name, tasks }) => {
+      const r = await window.planner.invoke('projects.create', { name, defaultRateCents: 5000 })
+      if (!r.ok) throw new Error(r.error.message)
+      const id = r.data.id
+      await window.planner.invoke('project.open', { id })
+      for (const fields of tasks) {
+        await window.planner.invoke('project.command', { id, command: { type: 'task.create', parentId: null, fields } })
+      }
+      await window.planner.invoke('project.close', { id })
+      return id
+    },
+    { name, tasks }
+  )
+}
+
+/** The saved file of the only project in the data folder. */
+export function projectFile(dataDir: string): string {
+  const projects = join(dataDir, 'projects')
+  return join(projects, readdirSync(projects).find((f) => f.endsWith('.json'))!)
 }
 
 /** Each test starts the app on an empty data folder, in English. */

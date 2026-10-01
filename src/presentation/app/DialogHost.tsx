@@ -2,6 +2,7 @@ import { ExportPdfDialog } from '../features/dialogs/ExportPdfDialog'
 import { ProjectSettingsDialog } from '../features/dialogs/ProjectSettingsDialog'
 import { SettingsDialog } from '../features/dialogs/SettingsDialog'
 import { ShortcutsDialog } from '../features/dialogs/ShortcutsDialog'
+import { TagsDialog } from '../features/dialogs/TagsDialog'
 import { CommandPalette, LinkChildDialog, LinkParentDialog, MoveTaskDialog } from '../features/dialogs/TaskDialogs'
 import { TeamDialog } from '../features/dialogs/TeamDialog'
 import { NewProjectDialog } from '../features/projects/NewProjectDialog'
@@ -30,6 +31,8 @@ export function DialogHost() {
       return <ProjectSettingsDialog onClose={close} />
     case 'team':
       return <TeamDialog onClose={close} />
+    case 'tags':
+      return <TagsDialog onClose={close} />
     case 'linkChild':
       return <LinkChildDialog parentId={dialog.parentId} onClose={close} />
     case 'linkParent':

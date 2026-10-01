@@ -31,18 +31,21 @@ A subtask can belong to several tasks at once, and hours, cost and duration stil
 
 | | |
 |---|---|
-| **Projects as cards** | Each project has a name, client, color, its own currency (EUR, USD…), a default rate, contingency, tax and working days. From the card you can duplicate it, archive it, export or import it as JSON and move it to the trash. |
-| **Tasks with no depth limit** | A virtualized tree with WBS codes (1, 1.1, 1.1.1…) that stays smooth with thousands of tasks. It is edited with the keyboard, like an outliner. |
-| **Task data** | Status, priority, assignee, story points, estimated hours, own rate and description. Hours accept several formats: `1.5`, `90m`, `1h 30m` or `2d`. |
+| **Projects as cards** | Each project has a name, client, color, its own currency (EUR, USD…), a default rate, contingency, tax and working days. From the card you can duplicate it, archive it, export a backup, import one back and move it to the trash. |
+| **Tasks with no depth limit** | A virtualized tree with WBS codes (1, 1.1, 1.1.1…) that stays smooth with thousands of tasks. It is edited with the keyboard, like an outliner. Long titles wrap onto several lines. |
+| **Task data** | Status, priority, assignee, story points, estimated hours, own rate, tags and description. Hours accept several formats: `1.5`, `90m`, `1h 30m` or `2d`. |
+| **Tags** | Each project has its own colored tags. Create one once and pick it for any task; it shows next to the title in the tree, on the board cards and, optionally, in the PDF. Rename or recolor it and every task changes. Filter by tag and tag several tasks at once. |
 | **Hours from story points** | Each project can have a scale (“1 point = 2 h”, rule of three, with exceptions such as “5 points = 8 h”). Tasks with story points and no hours typed by hand take their hours from it, and changing the scale updates them all. |
 | **Shared subtasks** | A subtask can hang from several tasks and still counts once. The app shows how much double counting was avoided. |
 | **Team and workload** | Each person has a role, a rate and working hours per day. The workload view splits the work per person and works out the project duration and end date. |
 | **Kanban board** | One column per status. Drag a card to change the status of its task. |
-| **PDF quote** | It includes these sections:<ul><li>Cover</li><li>Financial summary</li><li>WBS breakdown with subtotals</li><li>Team</li><li>Shared subtasks appendix</li><li>Task details (descriptions)</li><li>Terms</li></ul>The table adds up exactly to the total. |
+| **Sprints and status history** | Every status change of a task is recorded with its date and time. Each project sets the length of its sprints (days, weeks or months), and the PDF shows, sprint by sprint, which tasks moved forward or back. |
+| **PDF quote** | It includes these sections:<ul><li>Cover</li><li>Financial summary</li><li>WBS breakdown with subtotals</li><li>Task details (descriptions)</li><li>Task status: lanes by status and progress by sprint (optional)</li><li>Team and workload</li><li>Shared subtasks appendix</li><li>Terms</li></ul>The table adds up exactly to the total. |
+| **Resizable layout** | Widen or narrow every column of the tree and the detail panel by dragging their edges. The widths are remembered. |
 | **English and Spanish** | Switch the interface language at any time; choose the PDF language when exporting. Numbers and dates follow the language (`€7,327.16` / `7.327,16 €`). |
 | **Light / dark mode** | Light, dark or follow the system. The PDF is always light, ready to print. |
 | **Undo / redo** | Up to 100 steps per project. |
-| **Local and safe data** | No server and no account. Each project is a JSON file written atomically, plus a `.bak` copy, daily backups and automatic recovery. |
+| **Local and safe data** | No server and no account. Each project is a JSON file written atomically, plus a `.bak` copy, daily backups, automatic recovery and backups you export yourself. |
 
 ## Screenshots
 
@@ -54,6 +57,10 @@ A subtask can belong to several tasks at once, and hours, cost and duration stil
 <tr>
 <td><img src="docs/images/descriptions.png" alt="Descriptions shown in the tree"><br><sub>Descriptions shown under each task (“Descriptions” button or Alt+D).</sub></td>
 <td><img src="docs/images/board.png" alt="Kanban board"><br><sub>Kanban board by status.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/images/tags.png" alt="Picking a tag for a task"><br><sub>Project tags, picked for a task from its detail panel.</sub></td>
+<td><img src="docs/images/pdf-progress.png" alt="Task status section of the PDF"><br><sub>“Task status” in the PDF: lanes by status and progress by sprint.</sub></td>
 </tr>
 <tr>
 <td><img src="docs/images/workload.png" alt="Workload per person"><br><sub>Workload per person, estimated duration and end date.</sub></td>
@@ -89,6 +96,7 @@ There are two executables. They are built into `release/` with `pnpm dist:win` (
 - **Create a project.** Click “New project” and enter the name, client and currency. Everything else is set later in “Project settings”:
   - default rate and working hours per day;
   - story points → hours scale;
+  - length of the sprints;
   - contingency (%) and tax (%);
   - start date and working days;
   - quote number, date, validity and terms.
@@ -96,14 +104,14 @@ There are two executables. They are built into `release/` with `pnpm dist:win` (
   - tasks, hours, cost, story points and currency;
   - number of shared subtasks (🔗);
   - progress and team.
-- **The card's “⋯” menu.** Open, Duplicate, Export PDF…, Export JSON…, Archive / Restore and Delete… (which moves the project to the trash).
-- **“Import”.** Loads a project exported as JSON. If a project with the same id already exists, it is imported as a copy with new ids.
+- **The card's “⋯” menu.** Open, Duplicate, Export PDF…, Export backup…, Archive / Restore and Delete… (which moves the project to the trash).
+- **Backups.** See [Backups](#backups).
 - **Search and sort.** Search by project or client. Sort by most recent, by name or by cost.
 
 ### Tasks and subtasks
 
 - **Create tasks.** Use “New task” or press **Enter** on a task. When you finish a title, Enter creates the next one, **Tab** turns it into a subtask of the previous one and **Shift+Tab** moves it up a level. You can write a whole plan without touching the mouse.
-- **Edit.** Select a task and press **Space** to open the detail panel. It holds the status, priority, assignee, description, hours, rate and story points.
+- **Edit.** Select a task and press **Space** to open the detail panel. It holds the status, priority, assignee, description, hours, rate, story points and tags.
 - **Row menu** (right click or “⋯”):
   - add a subtask or a task below;
   - link an existing subtask, or also share the task in another one;
@@ -111,10 +119,11 @@ There are two executables. They are built into `release/` with `pnpm dist:win` (
   - duplicate;
   - focus on this task (shows only its branch);
   - copy to share, paste as shared subtask, and remove from here.
-- **Several tasks at once.** Select them with **Shift+↑/↓**. A bar appears to change the status, priority or assignee of all of them.
-- **Filter.** Search by text or WBS code. “Filters” narrows the tree by:
+- **Several tasks at once.** Select them with **Shift+↑/↓**, Shift+click or Ctrl+click. A bar appears to change the status, priority, assignee or tags of all of them.
+- **Filter.** Search by text (titles and tag names) or WBS code. “Filters” narrows the tree by:
   - status;
   - assignee;
+  - tags;
   - warnings: unestimated, unassigned, no rate, shared.
 - **Expand and navigate.** “Expand levels” opens the tree down to the level you choose. **Ctrl+K** jumps to any task.
 - **Delete a task with subtasks.** Two options are offered: delete it with its subtasks, or delete only that task and move its subtasks up a level. Subtasks that also hang from another task are never lost.
@@ -126,6 +135,8 @@ There are two executables. They are built into `release/` with `pnpm dist:win` (
 | **Own** | Hours of the task itself, without its subtasks: typed by hand, or in grey when they come from its story points. |
 | **Σ Hours / Σ Cost** | What the branch contributes to the total. That is why the rows can be added up (see [calculations](#domain-model-and-calculations)). |
 | **+X h 🔗** | Hours of shared subtasks this branch also needs but that are counted in another branch. |
+
+Long titles wrap onto several lines (their tags flow after them), so nothing is cut. To change the width of a column, drag the edge of its header; double-click the edge to go back to the default width. See [Layout](#layout).
 
 **Bottom bar:**
 
@@ -204,12 +215,53 @@ Instead of typing the hours of every task, you can let the story points set them
   - under each task of the breakdown;
   - in a separate “Task details” section (the default).
 
+### Tags
+
+Tags belong to the project: each one is **created once**, with a name and a vivid color, and then **picked** for any task, so you never type it again.
+
+- **Tag a task.** In the detail panel, “+ Tag” opens a list of the project's tags: tick or untick them. Type to search; if the name does not exist yet, “Create ‘…’” creates it and gives it to the task in one step. Remove a tag with the × of its chip.
+- **Several tasks at once.** With several tasks selected, “Tags” in the bottom bar gives a tag to all of them, or takes it away if all of them already have it.
+- **Manage them.** The “Tags” button next to “Team” lists every tag with the number of tasks that use it. Rename it, change its color or delete it there; every task changes at once. A new tag takes the next color of the palette.
+- **Where they show.** Next to the title in the tree, on the board cards and in the detail panel. “Filters” → Tags shows only the tasks with any of the chosen tags, and the text filter also finds tags by name.
+- **In the PDF.** Tick “Tags” when exporting to print them next to each task.
+- **Limits.** Up to 200 tags per project and 20 per task; names of up to 40 characters, unique in the project (case does not matter).
+
+<img src="docs/images/tags-dialog.png" alt="Tags of a project" width="720">
+
+### Sprints and progress
+
+- **Status history.** Every time a task changes status (in the tree, the board, the detail panel or the bottom bar), the app records the change with its date and time. Undoing the change also removes it from the history. Nothing else has to be done.
+- **Sprints.** Project settings → Sprints sets their length: a number of days, weeks or months (shortcuts: 1 week, 2 weeks, 1 month). New projects use 2 weeks. Sprint 1 starts on the project start date or, if it has none, on the day the project was created; the tab shows the current sprint. Untick “This project works in sprints” to turn them off.
+- **In the PDF.** Ticking “Status” in the export dialog adds the status column **and** a “Task status” section:
+  - a bar and a legend with how many tasks are in each status;
+  - **lanes by status** (To do, In progress, In review, Done) with every task, parent tasks in bold, three columns per lane so it stays compact with hundreds of tasks;
+  - **progress by sprint**: for each sprint, the tasks whose status at the end differs from their status at the start, as “To do → Done”. Steps in between are ignored, and a task that ends the sprint as it started it is not listed. Green ▲ means it moved forward; red ▼ and “Moved back” mean it went back. Sprints in a row without changes share one line.
+- **Changing the length** of the sprints regroups the changes already recorded.
+
+<img src="docs/images/sprints.png" alt="Sprint length in the project settings" width="720">
+
+### Backups
+
+The data folder already keeps a `.bak` copy and daily backups automatically (see [Persistence](#persistence)). A backup you export yourself is a single file you can keep anywhere.
+
+- **Export.** “Export backup…” in the menu of the project card, or the backup button (🗄) next to “Export PDF” inside the project. It saves `<project>.planner.json` where you choose: the same format the app stores, with its tasks, team, tags, sprints and status history.
+- **Import.** “Import backup…” on the projects screen. If that project no longer exists, it comes back as it was. If it still exists, you choose:
+  - **Keep both:** the backup is added as a copy with a new name (“… (imported)”);
+  - **Replace:** the backup takes the place of the current version, which is moved to the trash folder, so it can still be recovered.
+- A project created with a newer version of Planner (open in read-only mode) cannot be exported or duplicated, because this version would leave out what it does not know.
+
+### Layout
+
+- **Columns of the tree.** Drag the edge of a column header to widen or narrow it; double-click the edge to go back to its default width. The task column takes the free space: dragging it sets its minimum width.
+- **Detail panel.** Drag its left edge to make it wider or narrower (between 320 px and 60% of the window); double-click to go back to 400 px.
+- The widths are remembered on this computer for every project.
+
 ### Exporting to PDF
 
 Use “Export PDF” inside the project or in the menu of its card. You can choose:
 
 - the **PDF language** (English or Spanish), independently of the interface language;
-- the sections and the columns (hours, amounts, rate, story points, assignee and status);
+- the sections and the columns (hours, amounts, rate, story points, assignee, status and tags). **Status** also adds the “Task status” section with the progress by sprint (see [Sprints and progress](#sprints-and-progress));
 - the depth of the breakdown and down to which level subtotals are added;
 - the paper (A4 or Letter) and the orientation;
 - where the descriptions go.
@@ -218,13 +270,14 @@ The options, including the language, are remembered per project. The issuer deta
 
 <img src="docs/images/export-pdf.png" alt="PDF export dialog" width="720">
 
-These are three pages of the [sample PDF](docs/sample-quote.pdf):
+These are four pages of the [sample PDF](docs/sample-quote.pdf), exported with statuses and tags:
 
 <table>
 <tr>
-<td width="33%"><img src="docs/images/pdf-cover.png" alt="PDF cover"><br><sub>Cover</sub></td>
-<td width="33%"><img src="docs/images/pdf-summary.png" alt="Summary and breakdown"><br><sub>Summary and breakdown</sub></td>
-<td width="33%"><img src="docs/images/pdf-breakdown.png" alt="Breakdown and task details"><br><sub>Total and “Task details”</sub></td>
+<td width="25%"><img src="docs/images/pdf-cover.png" alt="PDF cover"><br><sub>Cover</sub></td>
+<td width="25%"><img src="docs/images/pdf-summary.png" alt="Summary and breakdown"><br><sub>Summary and breakdown</sub></td>
+<td width="25%"><img src="docs/images/pdf-breakdown.png" alt="Breakdown and task details"><br><sub>Total and “Task details”</sub></td>
+<td width="25%"><img src="docs/images/pdf-progress.png" alt="Task status and progress by sprint"><br><sub>Task status and progress by sprint</sub></td>
 </tr>
 </table>
 
@@ -334,7 +387,7 @@ pnpm seed:big
 |---|---|
 | `PLANNER_DATA_DIR` | Data folder. It takes precedence over everything else. |
 | `PLANNER_E2E_DIR` | For tests: save dialogs are not shown and files are written to this folder. |
-| `PLANNER_E2E_OPEN` | For tests: file returned by the open dialog (JSON import). |
+| `PLANNER_E2E_OPEN` | For tests: files returned by the open dialog, one per call (backup import), separated like `PATH` (`;` on Windows). |
 | `ELECTRON_RENDERER_URL` | Set by `pnpm dev`; it points to the Vite server. |
 
 ---
@@ -403,7 +456,7 @@ flowchart LR
 | **Application** | `src/application` | Use cases: sessions with undo/redo, catalog, reports and settings. It defines the **ports** (interfaces) for what it needs from the outside. |
 | **Infrastructure** | `src/infrastructure` | **Adapters.** Some implement the ports: JSON repository, PDF with Electron, clock and id generator. Others expose the use cases over IPC. The Electron startup and the *composition root* also live here. |
 | **Presentation** | `src/presentation` | React interface. It talks to the main process over IPC and reuses the pure domain functions to recalculate totals. |
-| **Shared** | `src/shared` | What the main process and the interface share: the typed IPC contract, how to apply a delta, number/date formatting per language, status and priority labels. |
+| **Shared** | `src/shared` | What the main process and the interface share: the typed IPC contract, how to apply a delta, number/date formatting per language, status and priority labels, and the colors of the tags. |
 
 ### Dependency rules
 
@@ -457,7 +510,7 @@ sequenceDiagram
   H->>H: trusted sender + strict zod validation
   H->>S: execute(id, command)
   S->>D: apply(state, command, ctx)
-  D-->>S: new immutable state (or a domain error)
+  D-->>S: new immutable state (or a domain error),<br/>with the status change in the task history
   S->>S: pushes the previous state (undo)
   S->>R: save(id, state), deferred write 300 ms
   S-->>H: Delta, only what changed
@@ -479,12 +532,16 @@ src/
 │  ├─ common/                   primitives (ids, Result, errors and their reasons) · money · calendar
 │  │                            duration · palette · validation · language (LANGUAGES)
 │  ├─ task/                     Task.ts (entity, statuses, priorities, defaults) · validateTask.ts
+│  │                            statusHistory.ts (the only writer of the status history)
 │  ├─ team/                     Member.ts (person, initials) · validateMember.ts
 │  ├─ project/                  Project.ts (ProjectMeta, ProjectState) · validateProject.ts
 │  │                            commands.ts (Command union) · apply.ts (pure reducer)
 │  │                            createProject.ts · projectData.ts (aggregate ↔ plain data)
-│  ├─ graph/                    TaskGraph.ts (immutable acyclic graph) · wbs.ts (1.2.3 codes)
+│  │                            tags.ts (project tags, palette keys, name rules)
+│  ├─ graph/                    TaskGraph.ts (immutable acyclic graph) · wbs.ts (1.2.3 codes, their order)
 │  ├─ estimation/               metrics.ts · estimate.ts (totals, contribution, savings, workload, duration)
+│  │                            pointScale.ts (story points → hours)
+│  ├─ progress/                 sprints.ts (sprint windows, net status changes per sprint)
 │  └─ index.ts                  Public API of the domain
 ├─ application/                 Use cases and ports
 │  ├─ ports/                    ProjectRepository · SettingsRepository · ProjectSerializer
@@ -511,18 +568,20 @@ src/
 ├─ presentation/                React interface
 │  ├─ index.html · main.tsx · styles.css (Tailwind) · assets/
 │  ├─ app/                      App, TopBar, DialogHost
-│  ├─ components/               Reusable components (button, dialog, menu, Rich text…)
-│  ├─ features/                 projects · project · tree · board · workload · detail · summary · dialogs
+│  ├─ components/               Reusable components (button, dialog, menu, Rich text, TagChip, SwatchPicker…)
+│  ├─ features/                 projects · project · tree · board · workload · detail · summary · dialogs · tags
 │  ├─ i18n/                     useI18n · catalogs per area (catalog/*.ts) · error texts
-│  ├─ stores/                   zustand state: catalog, project, settings, ui, toasts
-│  └─ lib/                      api (typed IPC client) · keys · storage · cn
+│  ├─ stores/                   zustand state: catalog, project, settings, ui, layout (column and panel widths), toasts
+│  └─ lib/                      api (typed IPC client) · keys · storage · cn · useWindowWidth
 └─ shared/
    ├─ i18n/language.ts          Locales, language names, resolving "System"
    ├─ ipc/contract.ts           IPC channels with their input and output types
    ├─ ipc/applyDelta.ts         Applies a Delta to a ProjectState
    ├─ ipc/errors.ts             Infrastructure error reasons
-   ├─ format.ts                 createFormatter(language): money, hours, dates, inputs
-   └─ labels.ts                 Status and priority names per language
+   ├─ format.ts                 createFormatter(language): money, hours, dates, date ranges, inputs
+   ├─ labels.ts                 Status and priority names per language
+   ├─ tagPalette.ts             Fill and text color of each tag color (app and PDF)
+   └─ time.ts                   localIsoDate · localDateOf (calendar dates in the time zone of the computer)
 
 tests/
 ├─ support/                     builders (sample scenarios) · arbitraries (fast-check generators)
@@ -578,12 +637,15 @@ That way there are no floating-point errors when adding up.
 
 | Entity | Contents |
 |---|---|
-| **ProjectMeta** | Name, client, color, currency, default rate, hours per day, contingency, tax, start, working days, story points scale, quote details, and whether it is archived. |
-| **Task** | Title, description, status, priority, assignee, story points, estimated minutes and own rate. |
+| **ProjectMeta** | Name, client, color, currency, default rate, hours per day, contingency, tax, start, working days, story points scale, sprint length, **tags of the project** (id, name, color), quote details, and whether it is archived. |
+| **Task** | Title, description, status, priority, assignee, story points, estimated minutes, own rate, tag ids and **status history**. |
 | **Member** | Name, role, rate, hours per day and color. |
 | **TaskGraph** | Structure of the project: an acyclic directed graph with ordered roots and children. `parents(t)[0]` is the **primary parent** of `t`. |
 
 The `ProjectState` aggregate groups the four entities.
+
+- **Tags.** A task refers to tags by id, so renaming or recoloring a tag changes every task at once. Names are unique in the project, ignoring case; a task has at most 20 tags. References to tags (or people) that no longer exist are dropped when a project is loaded.
+- **Status history.** `statusHistory` is a list of `{ at, from, to }`, oldest first; `from: null` marks the creation. Only the reducer writes it (`withStatus`): a change is recorded when the status really changes, with a time that never goes back. A duplicated task starts a new history. Undo reverts it with the rest of the state. The latest 1,000 changes are kept.
 
 ### Commands
 
@@ -599,7 +661,10 @@ Every change is a `Command`. `apply(state, command, ctx)` is a pure function: it
 | `edge.setPrimary` | Changes the primary parent, i.e. where it is counted. |
 | `edge.move` | Moves an appearance: indent, outdent, reorder or drag. |
 | `member.add` / `member.addMany` / `member.update` / `member.remove` | Manage the team. Removing someone reassigns their tasks. |
-| `project.update` | Project metadata. |
+| `project.update` | Project metadata (not its tags). |
+| `tag.create` | Creates a tag of the project, optionally giving it to some tasks in the same step. |
+| `tag.update` / `tag.delete` | Rename or recolor a tag; delete it, also from its tasks. |
+| `tag.assign` | Gives a tag to several tasks, or takes it away. |
 
 ### Totals without double counting
 
@@ -664,6 +729,21 @@ end       = start + ⌈duration⌉ working days    (the start day counts if it i
 
 **Progress** = minutes done / total minutes. Without hours, tasks done / tasks.
 
+### Sprints
+
+```
+start       = start date of the project  ??  day it was created (local date)
+sprint k    = [start + k × length, start + (k + 1) × length)        k = 0, 1, 2…  (sprint k + 1)
+initial(t)  = status of t when the sprint starts   (from of its first change in the sprint, or its creation)
+final(t)    = status of t when the sprint ends     (to of its last change in the sprint)
+listed      = tasks with initial(t) ≠ final(t)     forward if final comes later in To do < In progress < In review < Done
+```
+
+- **Months** keep the day of the start date, clamped to shorter months (31 Jan → 28/29 Feb → 31 Mar), computed from the start each time.
+- **Dates.** A change belongs to the sprint of its local date (the time zone of the computer).
+- **Edges.** Changes before the start form a “Before sprint 1” group; a change after today (a clock set back) counts in the current sprint.
+- Tasks from files older than format 3 have an empty history: their first change already records the status they came from.
+
 ---
 
 ## Persistence
@@ -682,23 +762,37 @@ The folder is chosen in this order of priority:
 ├─ settings.json                  Theme, language, issuer details and PDF options of each project
 ├─ projects/<id>.json             One file per project (+ <id>.json.bak, the previous version)
 ├─ backups/YYYY-MM-DD/<id>.json   Daily copy; kept for 14 days
-├─ trash/<id>-<date>.json         Projects moved to the trash (never deleted)
+├─ trash/<id>-<date>.json         Projects moved to the trash, or replaced by an imported backup (never deleted)
 └─ quarantine/                    Unreadable files, set aside so they are not lost
 ```
+
+The column widths of the tree and the width of the detail panel are view preferences of the computer: they live in the browser storage of the app (Chromium profile), not in this folder.
 
 ### Project file format
 
 ```json
 {
   "format": "planner.project",
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "meta": {
     "id": "…", "name": "ACME online store", "currency": "EUR", "contingencyBps": 1000,
     "pointScale": { "minutesPerPoint": 180, "overrides": [{ "points": 13, "minutes": 2160 }] },
+    "sprints": { "length": 2, "unit": "week" },
+    "tags": [{ "id": "…", "name": "Frontend", "color": "blue" }],
     "…": "…"
   },
   "members": [{ "id": "…", "name": "Anna Brooks", "rateCents": 5000, "hoursPerDay": 7, "…": "…" }],
-  "tasks": [{ "id": "…", "title": "Login", "estimateMinutes": 120, "assigneeId": "…", "…": "…" }],
+  "tasks": [
+    {
+      "id": "…", "title": "Login", "status": "in_progress", "estimateMinutes": 120, "assigneeId": "…",
+      "tagIds": ["…"],
+      "statusHistory": [
+        { "at": "2026-08-05T09:00:00.000Z", "from": null, "to": "todo" },
+        { "at": "2026-09-08T10:00:00.000Z", "from": "todo", "to": "in_progress" }
+      ],
+      "…": "…"
+    }
+  ],
   "structure": {
     "roots": ["…"],
     "children": { "<parent>": ["<child>", "…"] },
@@ -707,7 +801,7 @@ The folder is chosen in this order of priority:
 }
 ```
 
-When reading, the file is validated with zod (`infrastructure/validation/schemas.ts`). The domain invariants are also checked: unique ids, a consistent structure and no cycles.
+When reading, the file is validated with zod (`infrastructure/validation/schemas.ts`). The domain invariants are also checked: unique ids, a consistent structure and no cycles. The fields added in format 3 are read leniently, so a damaged entry never sends a whole project to quarantine: invalid history entries and tags are dropped, ids of tags that no longer exist are removed from their tasks, and invalid sprint settings fall back to 2 weeks.
 
 ### Writing and recovery
 
@@ -715,8 +809,10 @@ When reading, the file is validated with zod (`infrastructure/validation/schemas
 - **Atomic writes.** The file is written to `<id>.json.tmp`, flushed to disk (`fsync`) and renamed. Before that, the previous version is kept as `.bak`. A power cut never leaves a half-written file.
 - **Recovery.** If the main file cannot be read, `.tmp` is tried and then `.bak`. Unreadable files are moved to `quarantine/`.
 - **Format versions.**
-  - A file from an **older** version is migrated when opened (`MIGRATIONS` in `codec.ts`). Version 2 added `meta.pointScale`; version 1 files open without a scale (`null`).
-  - One from a **newer** version opens read-only, so it is not damaged. An app from before version 2 opening a newer file ignores its scale, so it shows no hours from story points.
+  - A file from an **older** version is migrated when opened (`MIGRATIONS` in `codec.ts`):
+    - version 2 added `meta.pointScale`; version 1 files open without a scale (`null`);
+    - version 3 added the status history, the sprints and the project tags. Version 2 files get an empty history and 2-week sprints, and their free-text tags become tags of the project: one per name, ignoring case, with fixed ids (`tag-1`, `tag-2`…) and colors in turn.
+  - One from a **newer** version opens read-only, so it is not damaged. For example, an app from before version 3 ignores the tags, sprints and history of a version 3 file. Such a project cannot be exported or duplicated either.
 - **Settings.** `settings.json` is read field by field: an invalid value falls back to its default without losing the rest.
 
 ---
@@ -733,7 +829,7 @@ Every response is an `IpcResult`: `{ ok: true, data }` or `{ ok: false, error: {
 |---|---|
 | `app.info` · `app.openDataDir` | Version, data folder, portable or not, system languages · open the folder in Explorer |
 | `projects.list` · `projects.create` · `projects.duplicate` · `projects.trash` | Project catalog (cards with totals) |
-| `projects.exportJson` · `projects.importJson` | Export and import a project as JSON |
+| `projects.exportJson` · `projects.importJson` · `projects.resolveImport` | Export a backup; import one. If the project already exists, `importJson` returns a `clash` with a ticket and `resolveImport` replaces it, keeps both or cancels |
 | `projects.members` | Team of another project (to import it) |
 | `project.open` · `project.close` | Open a project (returns a full `Snapshot`) and close it |
 | `project.command` · `project.undo` · `project.redo` | Run a domain command, undo or redo (they return a `Delta`) |
@@ -766,7 +862,7 @@ Every response is an `IpcResult`: `{ ok: true, data }` or `{ ok: false, error: {
 
 ```
 ReportService (application)
-  ├─ buildReportModel(state, estimation, options, issuer)  →  ReportModel (raw, already calculated data)
+  ├─ buildReportModel(state, options, issuer, { now, localDate })  →  ReportModel (raw, already calculated data)
   └─ PdfRenderer (port)
        └─ ElectronPdfRenderer (infrastructure/pdf)
             ├─ renderReportHtml(model)  → HTML + print CSS in the chosen language (reportHtml.ts, reportText.ts, reportCss.ts)
@@ -774,14 +870,17 @@ ReportService (application)
             └─ printToPDF (A4 or Letter, footer with page numbers)
 ```
 
-- **Sections:**
+- **Sections**, in this order:
   1. cover;
   2. summary with the budget (work, contingency, taxable base, tax and total);
   3. WBS breakdown with subtotals;
-  4. team and workload;
-  5. shared subtasks appendix;
-  6. task details (if descriptions go in their own section);
-  7. terms.
+  4. task details (if descriptions go in their own section);
+  5. task status (with the “Status” option): a bar by number of tasks, lanes with every task by status, and the net changes of each sprint ([rules](#sprints));
+  6. team and workload;
+  7. shared subtasks appendix;
+  8. terms.
+- **Dates.** “Today” and the sprints use the local date of the computer (`Clock.localDate`), so a change made at 00:30 belongs to that day.
+- **Tags.** With the “Tags” option, chips in the colors of `shared/tagPalette.ts` (the same as in the app) follow the task titles in the breakdown, the task details and the status section.
 - **Language.** The export options carry the language; texts, number and date formats, the footer and the file name (`… - quote 2026-09-30.pdf` / `… - presupuesto 2026-09-30.pdf`) follow it. The model only carries raw data (an untitled task has an empty title); the renderer adds the localized placeholders.
 - **Additive table.** A shared subtask has amounts only under its primary parent. Everywhere else a `↗ … shared · see 1.1.1` row appears without figures. The total says “each shared subtask counted once”, and the appendix explains how much double counting was avoided.
 - **Breakdown levels.** If the depth is limited, deeper levels are added into their visible task.
@@ -804,15 +903,15 @@ pnpm test:e2e
 
 | Type | Where | What it covers |
 |---|---|---|
-| **Domain** | `tests/unit/domain` | Graph (cycles, moves, primary parent, WBS codes), command reducer, durations, estimation, story points scale and error reasons. |
-| **Properties** | fast-check in the domain, application and shared tests | Invariants after random command sequences: no cycles, `naive − total = savings`, undo and redo return to the same state, deltas rebuild exactly the state of the main process, and typed numbers read back unchanged in both languages. |
+| **Domain** | `tests/unit/domain` | Graph (cycles, moves, primary parent, WBS codes), command reducer, durations, estimation, story points scale, status history, sprints (windows, net changes per sprint), project tags and error reasons. |
+| **Properties** | fast-check in the domain, application and shared tests | Invariants after random command sequences: no cycles, `naive − total = savings`, the status history ends in the current status and never goes back in time, tags always exist, undo and redo return to the same state, deltas rebuild exactly the state of the main process, and typed numbers read back unchanged in both languages. |
 | **Performance** | `tests/unit/domain/estimation/perf.test.ts` | `estimate` with 5,000 tasks. |
-| **Application** | `tests/unit/application` | Sessions and deltas, catalog (duplicate and import with new ids and clamped names) and report model (the table adds up to the total). |
-| **Shared** | `tests/unit/shared` | Formatting and parsing in English and Spanish, resolving the “System” language. |
-| **Infrastructure** | `tests/unit/infrastructure` | JSON repository (atomic writes, recovery, quarantine, backups), PDF HTML in both languages (escaping, descriptions, placeholders, file name), zod schemas and the stored language read at startup. |
-| **Presentation** | `tests/unit/presentation` | Flattening the tree into rows and the queue of keys typed while a task is being created. |
+| **Application** | `tests/unit/application` | Sessions and deltas, catalog (duplicate, export and import of backups: keep both, replace, cancel; projects from newer versions refused) and report model (the table adds up to the total, the status section and its sprints, tags). |
+| **Shared** | `tests/unit/shared` | Formatting and parsing in English and Spanish, resolving the “System” language, contrast of the tag colors. |
+| **Infrastructure** | `tests/unit/infrastructure` | JSON repository (atomic writes, recovery, quarantine, backups, migrations 1 → 2 → 3, damaged new fields cleaned up), PDF HTML in both languages (escaping, descriptions, placeholders, file name, status section, tags), zod schemas and the stored language read at startup. |
+| **Presentation** | `tests/unit/presentation` | Flattening the tree into rows, the queue of keys typed while a task is being created, column and panel widths, and the drafts of the story points and sprints tabs. |
 | **i18n** | `tests/unit/i18n` | Catalogs complete in both languages and code written in English. |
-| **E2E** | `tests/e2e` | The real app with Playwright: planning with the keyboard, sharing a subtask without double counting, undo, PDF export, persistence after restarting, team, descriptions, hours from story points, and switching the language of the interface and of the PDF. |
+| **E2E** | `tests/e2e` | The real app with Playwright: planning with the keyboard, sharing a subtask without double counting, undo, PDF export, persistence after restarting, team, descriptions, hours from story points, switching the language, project tags (create once, reuse, rename, filter, bulk), resizing columns and the panel, long titles that wrap, status history and sprints with the PDF, and exporting and importing backups. |
 
 The E2E tests start the built app with a temporary data folder (`PLANNER_DATA_DIR`), automatic dialogs (`PLANNER_E2E_DIR`), a temporary Chromium profile and a fixed language, so they do not depend on the machine.
 
@@ -827,16 +926,17 @@ The E2E tests start the built app with a temporary data folder (`PLANNER_DATA_DI
    - In `task/validateTask.ts`, validate it (for example with `isIsoDate`), with an error `reason`.
    - Add tests in `tests/unit/domain/`.
 2. **Persistence** (`src/infrastructure`):
-   - Add the field to the schema in `validation/schemas.ts`.
+   - Add the field to the schema in `validation/schemas.ts`. Read new fields leniently (`.catch(…)`), so a damaged value is cleaned up instead of sending the project to quarantine.
    - If older files do not have it, bump `CURRENT_SCHEMA_VERSION` in `persistence/json/codec.ts`.
-   - Add the migration to `MIGRATIONS` and a test that opens a file of the previous version.
+   - Add the migration to `MIGRATIONS` (literal values, and it must never throw) and a test that opens a file of the previous version.
+   - If the field refers to ids, `fromProjectData` (`domain/project/projectData.ts`) must drop references that no longer exist, and `copyWithNewIds` must remap them if they are task or person ids.
 3. **IPC.** Add the field to the `TaskPatch` schema in `infrastructure/ipc/inputSchemas.ts`. The objects are strict: without the field, the main process rejects the message.
 4. **Application** (`src/application`). Nothing to do for a new field: `task.update` already carries it.
    - For a **new use case**, create the service here. If it needs something external, define a port in `application/ports/` and its adapter in `infrastructure/`.
    - Wire them in `infrastructure/electron/main/container.ts`.
 5. **Presentation** (`src/presentation`):
    - Add the control in `features/detail/TaskDetailPanel.tsx`, with its texts in `i18n/catalog/detail.ts` (`en` and `es`).
-   - To see it in the tree, add a column in `features/tree/cells.tsx`.
+   - To see it in the tree, add a cell in `features/tree/TreeRowView.tsx` and its header in `TreeView.tsx`, and add the column to `TREE_COLUMNS` and `COLUMN_LIMITS` in `stores/layout.ts` (its width then becomes resizable). Rows are memoized: pass them values that keep their reference while they do not change.
 6. **PDF.** Add the data in `application/reports/buildReportModel.ts`, render it in `infrastructure/pdf/reportHtml.ts` and add its labels to `reportText.ts`.
 7. **Check:**
 
@@ -860,7 +960,8 @@ The E2E tests start the built app with a temporary data folder (`PLANNER_DATA_DI
 |---|---|
 | **SmartScreen blocks the `.exe`** | Click “More info” and then “Run anyway”, or [sign the executable](#building-the-exe). |
 | **The portable version saves to `%APPDATA%`** | The folder of the `.exe` is not writable (for example, inside `Program Files`). Move it to a folder of your own. |
-| **A project does not appear or does not open** | Look in `quarantine/` (damaged files), `backups/` (daily copies) and `trash/` (trash) inside the data folder. To recover a copy, close the app and copy the file to `projects/`. |
+| **A project does not appear or does not open** | Look in `quarantine/` (damaged files), `backups/` (daily copies) and `trash/` (trash, and versions replaced by an imported backup) inside the data folder. To recover a copy, close the app and copy the file to `projects/`, or use “Import backup…”. |
+| **The PDF shows no sprints, or all changes in the current sprint** | Sprints count from the project start date (Planning and costs). Changes are only recorded from format 3 on: projects from earlier versions have no past history. |
 | **“The file comes from a newer version of Planner”** | It was created with a later version of the app. It opens read-only: update the app. |
 | **Date fields keep the format of the previous language** | Native date fields follow the language the app started with: restart the app. |
 | **`pnpm install` rejects a version because of `minimumReleaseAge`** | pnpm 11 does not install versions published very recently. Wait, or add the version to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`. |

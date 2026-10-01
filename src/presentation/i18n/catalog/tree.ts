@@ -5,7 +5,7 @@ export const en = {
   columns: {
     wbs: 'WBS',
     task: 'Task',
-    /** Narrow column (40 px): a short word for "Assignee". */
+    /** Narrow column (40 px by default): a short word for "Assignee". */
     assignee: 'Who',
     status: 'Status',
     storyPoints: 'SP',
@@ -22,6 +22,8 @@ export const en = {
       'Contribution of the branch to the total: each shared subtask counts only under its primary task (★), so the rows can be added up. “+X h 🔗” marks shared hours it also needs but that count in another branch.',
     sumCost: 'Cost of the contribution (hours × applicable rate)'
   },
+  /** Grip on the edge of a column header (drag to resize, double-click for the default width). */
+  resizeColumn: (column: string) => `Resize the column ${column}`,
   /** Pinned ancestors header: levels hidden above the ones shown. */
   levelsAbove: (n: number) => (n === 1 ? '… 1 level above' : `… ${n} levels above`),
   empty: {
@@ -77,6 +79,8 @@ export const en = {
     removeFromHere: 'Remove from here'
   },
   bulk: {
+    /** Accessible name of the bulk edit bar. */
+    label: 'Edit the selected tasks',
     selected: (n: number) => `${n} selected`,
     updated: (n: number) => (n === 1 ? '1 task updated' : `${n} tasks updated`),
     status: 'Status…',
@@ -141,6 +145,7 @@ export const es: typeof en = {
       'Aportación de la rama al total: cada subtarea compartida cuenta solo bajo su tarea principal (★), así que las filas se pueden sumar. «+X h 🔗» indica horas compartidas que también necesita pero que cuentan en otra rama.',
     sumCost: 'Coste de la aportación (horas × tarifa aplicable)'
   },
+  resizeColumn: (column) => `Cambiar el ancho de la columna ${column}`,
   levelsAbove: (n) => (n === 1 ? '… 1 nivel más arriba' : `… ${n} niveles más arriba`),
   empty: {
     noMatches: 'Ninguna tarea coincide con el filtro',
@@ -191,6 +196,7 @@ export const es: typeof en = {
     removeFromHere: 'Quitar de aquí'
   },
   bulk: {
+    label: 'Editar las tareas seleccionadas',
     selected: (n) => (n === 1 ? '1 seleccionada' : `${n} seleccionadas`),
     updated: (n) => (n === 1 ? '1 tarea actualizada' : `${n} tareas actualizadas`),
     status: 'Estado…',

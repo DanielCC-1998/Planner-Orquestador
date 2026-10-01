@@ -2,6 +2,7 @@ import { DEFAULT_WORKING_WEEKDAYS } from '../common/calendar'
 import { paletteColor } from '../common/palette'
 import { domainError, err, ok, type DomainError, type IsoDateTime, type ProjectId, type Result } from '../common/primitives'
 import { TaskGraph } from '../graph/TaskGraph'
+import { DEFAULT_SPRINT_SETTINGS } from '../progress/sprints'
 import type { ProjectMeta, ProjectState } from './Project'
 import { validateMetaPatch } from './validateProject'
 
@@ -15,7 +16,7 @@ export interface NewProjectInput {
   readonly defaultHoursPerDay?: number | undefined
 }
 
-/** Creates an empty project with sensible defaults (EUR, 8 h/day, Monday to Friday). */
+/** Creates an empty project with sensible defaults (EUR, 8 h/day, Monday to Friday, 2-week sprints). */
 export function createProjectState(
   id: ProjectId,
   input: NewProjectInput,
@@ -48,6 +49,8 @@ export function createProjectState(
     taxBps: 0,
     taxLabel: '',
     pointScale: null,
+    sprints: DEFAULT_SPRINT_SETTINGS,
+    tags: [],
     quote: { number: '', date: null, validityDays: 30, terms: '' },
     archived: false,
     createdAt: now,

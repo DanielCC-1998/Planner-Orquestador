@@ -1,4 +1,11 @@
-import { MAX_TITLE_LENGTH, type DomainErrorReason } from '@domain'
+import {
+  MAX_PROJECT_TAGS,
+  MAX_SPRINT_LENGTH,
+  MAX_TAG_NAME_LENGTH,
+  MAX_TAGS_PER_TASK,
+  MAX_TITLE_LENGTH,
+  type DomainErrorReason
+} from '@domain'
 import { param, type ErrorText } from '../types'
 
 /** Texts of the domain error reasons (validation, structure and duration parsing). */
@@ -12,8 +19,11 @@ export const en: Readonly<Record<DomainErrorReason, ErrorText>> = {
   UNKNOWN_ASSIGNEE: 'The assignee is not part of the project',
   INVALID_RATE: 'Invalid rate',
   INVALID_TAGS: 'Invalid tags',
-  TAG_TOO_LONG: 'Each tag can have at most 40 characters',
-  TOO_MANY_TAGS: 'At most 20 tags per task',
+  TAG_TOO_LONG: `Each tag can have at most ${MAX_TAG_NAME_LENGTH} characters`,
+  TOO_MANY_TAGS: `At most ${MAX_TAGS_PER_TASK} tags per task`,
+  TAG_EXISTS: (p) => `There is already a tag called “${param(p, 'name')}”`,
+  UNKNOWN_TAG: 'The tag is not part of the project',
+  TOO_MANY_PROJECT_TAGS: `At most ${MAX_PROJECT_TAGS} tags per project`,
   NAME_REQUIRED: 'The name is required',
   NAME_TOO_LONG: 'The name is too long',
   ROLE_TOO_LONG: 'The role is too long',
@@ -45,6 +55,7 @@ export const en: Readonly<Record<DomainErrorReason, ErrorText>> = {
   DURATION_NEGATIVE: 'The duration cannot be negative',
   DURATION_TOO_LARGE: 'The duration is too large',
   INVALID_POINT_SCALE: 'Invalid story point scale',
+  INVALID_SPRINTS: `Invalid sprint length (up to ${MAX_SPRINT_LENGTH.day} days, ${MAX_SPRINT_LENGTH.week} weeks or ${MAX_SPRINT_LENGTH.month} months)`,
   CYCLE_MOVE: 'It would create a cycle: the destination is inside the task you are moving',
   CYCLE_LINK: 'It would create a cycle: the destination task is inside that subtask',
   UNKNOWN_TASK: 'Unknown task',
@@ -66,8 +77,11 @@ export const es: Readonly<Record<DomainErrorReason, ErrorText>> = {
   UNKNOWN_ASSIGNEE: 'La persona asignada no existe en el proyecto',
   INVALID_RATE: 'Tarifa no válida',
   INVALID_TAGS: 'Etiquetas no válidas',
-  TAG_TOO_LONG: 'Cada etiqueta admite como máximo 40 caracteres',
-  TOO_MANY_TAGS: 'Máximo 20 etiquetas por tarea',
+  TAG_TOO_LONG: `Cada etiqueta admite como máximo ${MAX_TAG_NAME_LENGTH} caracteres`,
+  TOO_MANY_TAGS: `Máximo ${MAX_TAGS_PER_TASK} etiquetas por tarea`,
+  TAG_EXISTS: (p) => `Ya existe una etiqueta llamada «${param(p, 'name')}»`,
+  UNKNOWN_TAG: 'La etiqueta no existe en el proyecto',
+  TOO_MANY_PROJECT_TAGS: `Máximo ${MAX_PROJECT_TAGS} etiquetas por proyecto`,
   NAME_REQUIRED: 'El nombre es obligatorio',
   NAME_TOO_LONG: 'Nombre demasiado largo',
   ROLE_TOO_LONG: 'Rol demasiado largo',
@@ -99,6 +113,7 @@ export const es: Readonly<Record<DomainErrorReason, ErrorText>> = {
   DURATION_NEGATIVE: 'La duración no puede ser negativa',
   DURATION_TOO_LARGE: 'Duración demasiado grande',
   INVALID_POINT_SCALE: 'Escala de puntos no válida',
+  INVALID_SPRINTS: `Duración de sprint no válida (hasta ${MAX_SPRINT_LENGTH.day} días, ${MAX_SPRINT_LENGTH.week} semanas o ${MAX_SPRINT_LENGTH.month} meses)`,
   CYCLE_MOVE: 'Crearía un ciclo: el destino está dentro de la tarea que mueves',
   CYCLE_LINK: 'Crearía un ciclo: la tarea destino está dentro de esa subtarea',
   UNKNOWN_TASK: 'Tarea desconocida',

@@ -14,7 +14,7 @@ import {
 } from '@domain'
 import type { LoadedProject, RepoError } from '@application/ports'
 import { projectArb } from '@tests/support/arbitraries'
-import { loginSignupScenario, testId } from '@tests/support/builders'
+import { fixedClock, loginSignupScenario, testId } from '@tests/support/builders'
 import { ProjectSessions } from '@application/projects/ProjectSessions'
 
 /** Repository whose projects come from a newer version of the app (they open read-only). */
@@ -29,7 +29,7 @@ function setup(state: ProjectState, repo = new InMemoryProjectRepository()) {
   repo.store.set(state.meta.id, state)
   const sessions = new ProjectSessions({
     repo,
-    clock: { now: () => '2026-01-01T00:00:00.000Z' },
+    clock: fixedClock(),
     ids: { next: testId }
   })
   return { repo, sessions, id: state.meta.id }

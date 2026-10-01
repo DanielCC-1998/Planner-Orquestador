@@ -137,5 +137,80 @@ tr.desc-row.level-1 td { background: var(--soft); }
 .details header .meta { margin-left: auto; padding-left: 10pt; font-size: 8pt; color: var(--muted); white-space: nowrap; }
 .details .path { font-size: 7.8pt; color: var(--muted); margin: 1pt 0 0; }
 .details .desc { margin-top: 4pt; }
+.details .chips { margin: 2pt 0 0 -3pt; }
+
+/* Long titles without spaces must wrap instead of pushing the table off the page. */
+td.title, .details header .dtitle, .lane li { overflow-wrap: anywhere; }
+
+/* Tag chips (colors inline, from the shared palette) */
+.chip {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 6.8pt;
+  font-weight: 650;
+  line-height: 1.35;
+  padding: 0 4pt;
+  margin-left: 3pt;
+  border-radius: 6pt;
+  white-space: nowrap;
+  vertical-align: 1px;
+  font-style: normal;
+}
+
+/* Task status: colors of the PDF (it does not use the app theme) */
+.pill { display: inline-block; font-size: 7.2pt; font-weight: 650; padding: 0.5pt 5pt; border-radius: 7pt; white-space: nowrap; }
+.pill.todo, .lane.todo h3 { background: #eef0f3; color: #374151; }
+.pill.in_progress, .lane.in_progress h3 { background: #dbeafe; color: #1d4ed8; }
+.pill.review, .lane.review h3 { background: #f3e8ff; color: #7e22ce; }
+.pill.done, .lane.done h3 { background: #dcfce7; color: #15803d; }
+.dot { display: inline-block; width: 7pt; height: 7pt; border-radius: 50%; margin-right: 4pt; vertical-align: -0.5pt; }
+.dot.todo, .stack i.todo { background: #9ca3af; }
+.dot.in_progress, .stack i.in_progress { background: #2563eb; }
+.dot.review, .stack i.review { background: #9333ea; }
+.dot.done, .stack i.done { background: #16a34a; }
+.stack { display: flex; height: 9pt; border-radius: 5pt; overflow: hidden; background: var(--soft); margin: 6pt 0 5pt; }
+.stack i { display: block; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 3pt 14pt; font-size: 8pt; color: var(--ink-2); margin-bottom: 4pt; }
+.lane { margin-top: 10pt; }
+.lane h3 {
+  display: flex;
+  align-items: center;
+  font-size: 8.4pt;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin: 0 0 4pt;
+  padding: 3pt 7pt;
+  border-radius: 4pt;
+}
+.lane ul { list-style: none; margin: 0; padding: 0 2pt; column-count: 3; column-gap: 14pt; }
+.lane li { break-inside: avoid; font-size: 8.2pt; line-height: 1.35; padding: 1.5pt 0; }
+.lane li .lcode { color: var(--muted); font-size: 7.6pt; margin-right: 4pt; }
+.lane li.parent .ltitle { font-weight: 650; }
+.lane .empty { font-size: 8pt; color: var(--muted); font-style: italic; padding: 0 2pt; margin: 0; }
+
+/* Progress by sprint */
+table.sprint { margin-top: 10pt; }
+table.sprint tr.sprint-head th {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 9.4pt;
+  color: var(--ink);
+  font-weight: 400;
+  padding: 6pt 6pt 4pt;
+}
+table.sprint .sh { display: flex; align-items: baseline; gap: 10pt; }
+table.sprint .sh .when { color: var(--muted); margin-left: 7pt; }
+table.sprint .sh .current { color: var(--accent); font-weight: 650; margin-left: 7pt; }
+table.sprint .sh .counts { margin-left: auto; font-size: 8pt; color: var(--ink-2); }
+table.sprint td.change { white-space: nowrap; text-align: right; width: 1%; }
+.dir { font-size: 7pt; margin-right: 5pt; }
+.dir.forward, .arrow.forward { color: #16a34a; }
+.dir.backward, .arrow.backward { color: #dc2626; }
+.arrow { font-weight: 700; margin: 0 4pt; }
+.back { font-size: 7pt; font-weight: 700; color: #b91c1c; background: #fee2e2; border-radius: 6pt; padding: 0.5pt 5pt; margin-left: 5pt; }
+.quiet { font-size: 8.4pt; color: var(--muted); margin: 8pt 0 0; padding: 4pt 6pt; border-bottom: 1px solid var(--line); }
+.quiet b { color: var(--ink-2); }
 `
 }

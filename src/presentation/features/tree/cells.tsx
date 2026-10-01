@@ -126,12 +126,15 @@ export function AssigneePicker({
 /**
  * Inline editor: commits with Enter or on blur, and cancels with Esc.
  * `onCommit` returns false if the value is not valid (the editor stays open).
+ * `multiline`: a text area that grows with long text (titles wrap instead of scrolling);
+ * Enter still commits and line breaks are not kept.
  */
 export function InlineEditor({
   initial,
   placeholder,
   className,
   align = 'left',
+  multiline = false,
   onCommit,
   onCancel,
   onKey,
@@ -141,14 +144,15 @@ export function InlineEditor({
   placeholder?: string
   className?: string
   align?: 'left' | 'right'
+  multiline?: boolean
   onCommit: (value: string, via: 'enter' | 'blur' | 'tab' | 'shift-tab') => boolean | Promise<boolean>
   onCancel: (value: string) => void
-  onKey?: (e: React.KeyboardEvent<HTMLInputElement>) => boolean
+  onKey?: (e: React.KeyboardEvent<HTMLElement>) => boolean
   /** Text typed before the editor existed is appended to the value. */
   takeTypeAhead?: () => { text: string; action: 'enter' | 'tab' | 'shift-tab' | 'escape' | null }
 }) {
   const [value, setValue] = useState(initial)
-  const ref = useRef<HTMLInputElement>(null)
+  const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null)
   const done = useRef(false)
 
   useEffect(() => {
@@ -194,35 +198,38 @@ export function InlineEditor({
     }
   }
 
-  return (
-    <input
-      ref={ref}
-      value={value}
-      placeholder={placeholder}
-      onChange={(e) => setValue(e.target.value)}
-      onClick={(e) => e.stopPropagation()}
-      onDoubleClick={(e) => e.stopPropagation()}
-      onBlur={() => void commit('blur')}
-      onKeyDown={(e) => {
-        e.stopPropagation()
-        if (onKey?.(e)) return
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          void commit('enter')
-        } else if (e.key === 'Escape') {
-          e.preventDefault()
-          done.current = true
-          onCancel(value)
-        } else if (e.key === 'Tab') {
-          e.preventDefault()
-          void commit(e.shiftKey ? 'shift-tab' : 'tab')
-        }
-      }}
-      className={cn(
-        'h-6 w-full min-w-0 rounded border border-ring bg-card px-1.5 text-sm outline-none ring-2 ring-ring/30',
-        align === 'right' && 'text-right tabular-nums',
-        className
-      )}
-    />
+  const props = {
+    ref,
+    value,
+    placeholder,
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setValue(multiline ? e.target.value.replace(/[\r\n]+/g, ' ') : e.target.value),
+    onClick: (e: React.MouseEvent) => e.stopPropagation(),
+    onDoubleClick: (e: React.MouseEvent) => e.stopPropagation(),
+    onBlur: () => void commit('blur'),
+    onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => {
+      e.stopPropagation()
+      if (onKey?.(e)) return
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        void commit('enter')
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        done.current = true
+        onCancel(value)
+      } else if (e.key === 'Tab') {
+        e.preventDefault()
+        void commit(e.shiftKey ? 'shift-tab' : 'tab')
+      }
+    }
+  }
+  const look = cn(
+    'w-full min-w-0 rounded border border-ring bg-card px-1.5 text-sm outline-none ring-2 ring-ring/30',
+    align === 'right' && 'text-right tabular-nums'
+  )
+  return multiline ? (
+    <textarea {...props} rows={1} className={cn(look, 'field-sizing-content min-h-6 resize-none py-0.5 leading-5 wrap-anywhere', className)} />
+  ) : (
+    <input {...props} className={cn(look, 'h-6', className)} />
   )
 }

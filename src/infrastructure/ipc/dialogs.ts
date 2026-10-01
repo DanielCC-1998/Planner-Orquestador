@@ -30,8 +30,8 @@ export function electronDialogs(getWindow: () => BrowserWindow | null): Dialogs 
 }
 
 /**
- * For E2E tests: saves into `dir` without asking and opens the first file it is given.
- * Enabled with PLANNER_E2E_DIR.
+ * For E2E tests: saves into `dir` without asking and opens the files it is given, one per call.
+ * Enabled with PLANNER_E2E_DIR (and PLANNER_E2E_OPEN for the files to open).
  */
 export function automaticDialogs(dir: string, openQueue: string[] = []): Dialogs {
   return {

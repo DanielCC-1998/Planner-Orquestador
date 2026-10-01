@@ -15,6 +15,7 @@ import * as projects from './catalog/projects'
 import * as settings from './catalog/settings'
 import * as shortcuts from './catalog/shortcuts'
 import * as summary from './catalog/summary'
+import * as tags from './catalog/tags'
 import * as taskDialogs from './catalog/taskDialogs'
 import * as team from './catalog/team'
 import * as toolbar from './catalog/toolbar'
@@ -42,6 +43,7 @@ const en = {
   shortcuts: shortcuts.en,
   taskDialogs: taskDialogs.en,
   team: team.en,
+  tags: tags.en,
   status: STATUS_LABELS.en,
   priority: PRIORITY_LABELS.en,
   errors: { codes: errorsCodes.en, domain: errorsDomain.en, app: errorsApp.en, infra: errorsInfra.en }
@@ -66,6 +68,7 @@ const es: Messages = {
   shortcuts: shortcuts.es,
   taskDialogs: taskDialogs.es,
   team: team.es,
+  tags: tags.es,
   status: STATUS_LABELS.es,
   priority: PRIORITY_LABELS.es,
   errors: { codes: errorsCodes.es, domain: errorsDomain.es, app: errorsApp.es, infra: errorsInfra.es }

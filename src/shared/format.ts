@@ -1,4 +1,4 @@
-import type { Language } from '@domain'
+import type { Language, SprintUnit } from '@domain'
 import { LOCALE_OF } from './i18n/language'
 
 /**
@@ -25,6 +25,10 @@ export interface Formatter {
   date(iso: string): string
   /** "September 30, 2026" / "30 de septiembre de 2026". */
   dateLong(iso: string): string
+  /** Two dates as a compact range: "Oct 13 – 26, 2026" / "13–26 oct 2026". */
+  dateRange(fromIso: string, toIso: string): string
+  /** A whole number of days, weeks or months: "2 weeks", "1 month" / "2 semanas", "1 mes". */
+  period(count: number, unit: SprintUnit): string
   /** How long ago: "5 min. ago", "yesterday"… (project cards). */
   relative(iso: string, now?: Date): string
   /** Locale-aware, case-insensitive comparison for sorting names. */
@@ -168,6 +172,16 @@ function buildFormatter(language: Language): Formatter {
     },
     dateLong(iso) {
       return df('long', { day: 'numeric', month: 'long', year: 'numeric' }).format(toDate(iso))
+    },
+    dateRange(fromIso, toIso) {
+      const from = toDate(fromIso)
+      const to = toDate(toIso)
+      return from.getTime() > to.getTime()
+        ? formatter.date(fromIso)
+        : df('short', { day: 'numeric', month: 'short', year: 'numeric' }).formatRange(from, to)
+    },
+    period(count, unit) {
+      return nf(`period:${unit}`, { style: 'unit', unit, unitDisplay: 'long', maximumFractionDigits: 0 }).format(count)
     },
     relative(iso, now = new Date()) {
       const seconds = (now.getTime() - new Date(iso).getTime()) / 1000

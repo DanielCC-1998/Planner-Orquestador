@@ -97,6 +97,31 @@ export interface ReportText {
     readonly title: string
     readonly intro: string
   }
+  /** "Task status" section: lanes by status and the progress by sprint. */
+  readonly progress: {
+    readonly title: string
+    readonly asOf: (date: string) => string
+    /** "sprints of 2 weeks starting Sep 1, 2026"; `length` is already worded by the formatter. */
+    readonly rhythm: (length: string, start: string) => string
+    /** Caption of the bar and its legend. */
+    readonly byCount: string
+    readonly emptyLane: string
+    readonly sprintsTitle: string
+    readonly sprintsIntro: string
+    readonly noSprints: string
+    readonly firstSprintStarts: (date: string) => string
+    readonly sprint: (n: number) => string
+    /** Several sprints in a row without changes: "Sprints 4–6". */
+    readonly sprintRange: (from: number, to: number) => string
+    readonly beforeFirst: string
+    readonly current: string
+    readonly finished: (n: number) => string
+    readonly forward: (n: number) => string
+    readonly backward: (n: number) => string
+    /** Badge of a task that went back to an earlier status. */
+    readonly movedBack: string
+    readonly noChanges: string
+  }
   readonly workload: {
     readonly title: string
     readonly note: (withContingency: boolean) => string
@@ -190,6 +215,27 @@ export const REPORT_TEXT: Readonly<Record<Language, ReportText>> = {
     details: {
       title: 'Task details',
       intro: 'Descriptions of the tasks in the breakdown, in the same order (WBS code).'
+    },
+    progress: {
+      title: 'Task status',
+      asOf: (date) => `Status on ${date}`,
+      rhythm: (length, start) => `sprints of ${length} starting ${start}`,
+      byCount: 'By number of tasks',
+      emptyLane: 'No tasks',
+      sprintsTitle: 'Progress by sprint',
+      sprintsIntro:
+        'Each sprint lists the tasks that ended it in a different status from the one they had when it started. Intermediate steps are not shown.',
+      noSprints: 'This project does not work in sprints.',
+      firstSprintStarts: (date) => `The first sprint starts on ${date}.`,
+      sprint: (n) => `Sprint ${n}`,
+      sprintRange: (from, to) => `Sprints ${from}–${to}`,
+      beforeFirst: 'Before sprint 1',
+      current: 'in progress',
+      finished: (n) => `${n} done`,
+      forward: (n) => `${n} moved forward`,
+      backward: (n) => `${n} moved back`,
+      movedBack: 'Moved back',
+      noChanges: 'No status changes'
     },
     workload: {
       title: 'Team and workload',
@@ -287,6 +333,27 @@ export const REPORT_TEXT: Readonly<Record<Language, ReportText>> = {
     details: {
       title: 'Detalle de las tareas',
       intro: 'Descripción de las tareas del desglose, en el mismo orden (código WBS).'
+    },
+    progress: {
+      title: 'Estado de las tareas',
+      asOf: (date) => `Estado a ${date}`,
+      rhythm: (length, start) => `sprints de ${length} desde el ${start}`,
+      byCount: 'Por número de tareas',
+      emptyLane: 'Sin tareas',
+      sprintsTitle: 'Progreso por sprint',
+      sprintsIntro:
+        'Cada sprint muestra las tareas que lo terminaron en un estado distinto del que tenían al empezarlo. No se muestran los pasos intermedios.',
+      noSprints: 'Este proyecto no trabaja por sprints.',
+      firstSprintStarts: (date) => `El primer sprint empieza el ${date}.`,
+      sprint: (n) => `Sprint ${n}`,
+      sprintRange: (from, to) => `Sprints ${from}–${to}`,
+      beforeFirst: 'Antes del sprint 1',
+      current: 'en curso',
+      finished: (n) => (n === 1 ? '1 terminada' : `${n} terminadas`),
+      forward: (n) => (n === 1 ? '1 avanza' : `${n} avanzan`),
+      backward: (n) => (n === 1 ? '1 retrocede' : `${n} retroceden`),
+      movedBack: 'Retrocede',
+      noChanges: 'Sin cambios de estado'
     },
     workload: {
       title: 'Equipo y carga de trabajo',

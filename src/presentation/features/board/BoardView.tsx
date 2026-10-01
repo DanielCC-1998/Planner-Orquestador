@@ -11,8 +11,9 @@ import {
   type DragStartEvent
 } from '@dnd-kit/core'
 import { Link2, NotebookText } from 'lucide-react'
-import { branchTaskIds, TASK_STATUSES, type Member, type Task, type TaskStatus } from '@domain'
+import { branchTaskIds, compareCodes, tagsOfTask, TASK_STATUSES, type Member, type TagDef, type Task, type TaskStatus } from '@domain'
 import { DescriptionPreview } from '../../components/DescriptionPreview'
+import { TagChip } from '../../components/TagChip'
 import { Button } from '../../components/ui/button'
 import { Avatar, EmptyState, Segmented, Tooltip } from '../../components/ui/misc'
 import { useI18n } from '../../i18n'
@@ -44,6 +45,7 @@ interface CardData {
   storyPoints: number
   member: Member | undefined
   shared: number
+  tags: readonly TagDef[]
 }
 
 function CardView({
@@ -73,7 +75,14 @@ function CardView({
         <span className="tabular-nums">{card.code}</span>
         {card.path ? <span className="truncate">· {card.path}</span> : null}
       </div>
-      <div className={cn('line-clamp-2 font-medium leading-snug', !task.title && 'text-muted-foreground')}>{task.title || t.common.untitled}</div>
+      <div className={cn('font-medium leading-snug wrap-anywhere', !task.title && 'text-muted-foreground')}>{task.title || t.common.untitled}</div>
+      {card.tags.length > 0 ? (
+        <div className="flex flex-wrap gap-1">
+          {card.tags.map((tag) => (
+            <TagChip key={tag.id} name={tag.name} color={tag.color} size="xs" />
+          ))}
+        </div>
+      ) : null}
       {showDescription && description ? (
         <div data-col="description" className="text-xs leading-relaxed text-muted-foreground">
           <DescriptionPreview text={description} />
@@ -206,10 +215,11 @@ export function BoardView() {
         unestimated: (metrics?.unestimated ?? 1) > 0,
         storyPoints: metrics?.storyPoints ?? 0,
         member: task.assigneeId ? state.members.get(task.assigneeId) : undefined,
-        shared: graph.parents(id).length
+        shared: graph.parents(id).length,
+        tags: tagsOfTask(state.meta.tags, task.tagIds)
       })
     }
-    return out.sort((a, b) => a.code.localeCompare(b.code, 'es', { numeric: true }))
+    return out.sort((a, b) => compareCodes(a.code, b.code))
   }, [state, est, focusId, filters, scope, t])
 
   const byStatus = (status: TaskStatus) => cards.filter((c) => (pending.get(c.task.id) ?? c.task.status) === status)

@@ -7,6 +7,8 @@ export const en = {
   focusTip: 'Focus (show only this branch)',
   focus: 'Focus',
   closePanel: 'Close panel',
+  /** Grip on the left edge of the panel. */
+  resizePanel: 'Resize the panel (double-click: default width)',
   titlePlaceholder: 'Task name',
   status: 'Status',
   priority: 'Priority',
@@ -70,7 +72,6 @@ export const en = {
   see: (code: string) => `see ${code}`,
   newSubtaskPlaceholder: (key: string) => `+ Add a subtask and press ${key}`,
   tags: 'Tags',
-  tagsPlaceholder: 'Comma-separated tags',
   duplicate: 'Duplicate',
   subtask: 'Subtask'
 }
@@ -83,6 +84,7 @@ export const es: typeof en = {
   focusTip: 'Enfocar (ver solo esta rama)',
   focus: 'Enfocar',
   closePanel: 'Cerrar panel',
+  resizePanel: 'Cambiar el ancho del panel (doble clic: ancho por defecto)',
   titlePlaceholder: 'Nombre de la tarea',
   status: 'Estado',
   priority: 'Prioridad',
@@ -136,7 +138,6 @@ export const es: typeof en = {
   see: (code) => `ver ${code}`,
   newSubtaskPlaceholder: (key) => `+ Añadir subtarea y pulsar ${key}`,
   tags: 'Etiquetas',
-  tagsPlaceholder: 'Etiquetas separadas por comas',
   duplicate: 'Duplicar',
   subtask: 'Subtarea'
 }

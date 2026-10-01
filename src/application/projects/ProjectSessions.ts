@@ -1,6 +1,6 @@
 import { apply, ok, type Command, type ProjectId, type ProjectState, type Result } from '@domain'
-import { fail, type AppError } from '../errors'
-import type { Clock, IdGenerator, ProjectRepository } from '../ports'
+import { fail, readOnlyNewer, type AppError } from '../errors'
+import type { Clock, IdGenerator, LoadedProject, ProjectRepository } from '../ports'
 import { diffStates, toSnapshot, type Delta, type Snapshot } from './snapshot'
 
 export type SaveStatus =
@@ -54,11 +54,16 @@ export class ProjectSessions {
     return ok(toSnapshot(s.state, s.revision, s.undo.length > 0, s.redo.length > 0, s.readOnly))
   }
 
+  /** Current state of the project and whether it is read-only, whether it is open or not. */
+  async loadedOf(id: ProjectId): Promise<Result<LoadedProject, AppError>> {
+    const open = this.sessions.get(id)
+    if (open) return ok({ state: open.state, readOnly: open.readOnly })
+    return this.deps.repo.load(id)
+  }
+
   /** Current state of the project, whether it is open or not (for exporting or listing). */
   async stateOf(id: ProjectId): Promise<Result<ProjectState, AppError>> {
-    const open = this.sessions.get(id)
-    if (open) return ok(open.state)
-    const loaded = await this.deps.repo.load(id)
+    const loaded = await this.loadedOf(id)
     if (!loaded.ok) return loaded
     return ok(loaded.value.state)
   }
@@ -73,9 +78,7 @@ export class ProjectSessions {
     const session = await this.session(id)
     if (!session.ok) return session
     const s = session.value
-    if (s.readOnly) {
-      return fail('READ_ONLY', 'This project was created with a newer version of the app and is read-only', 'READ_ONLY_NEWER')
-    }
+    if (s.readOnly) return readOnlyNewer()
     const result = apply(s.state, command, { now: this.deps.clock.now(), newId: () => this.deps.ids.next() })
     if (!result.ok) return result
     const prev = s.state

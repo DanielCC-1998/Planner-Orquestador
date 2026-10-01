@@ -35,6 +35,21 @@ export function addCalendarDays(date: IsoDate, days: number): IsoDate {
   return fromUtc(d)
 }
 
+/** Calendar days from `from` to `to` (negative when `to` is earlier). */
+export function daysBetween(from: IsoDate, to: IsoDate): number {
+  return Math.round((toUtc(to).getTime() - toUtc(from).getTime()) / 86_400_000)
+}
+
+/** `date` plus `months` months. It keeps the day of the month or, in a shorter month, its last day (Jan 31 → Feb 28). */
+export function addMonthsClamped(date: IsoDate, months: number): IsoDate {
+  const d = toUtc(date)
+  const day = d.getUTCDate()
+  const target = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, 1))
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate()
+  target.setUTCDate(Math.min(day, lastDay))
+  return fromUtc(target)
+}
+
 /**
  * Date of the last working day of a job of `workDays` days that starts on `start`.
  * The start day counts as the first day if it is a working day. 1.4 days end on the 2nd working day.

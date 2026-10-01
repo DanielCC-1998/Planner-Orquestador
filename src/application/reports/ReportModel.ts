@@ -1,4 +1,4 @@
-import type { Language, MoneyBreakdown, TaskStatus } from '@domain'
+import type { ChangeDirection, Language, MoneyBreakdown, SprintSettings, TagColor, TaskStatus } from '@domain'
 import type { Issuer } from '../settings/Settings'
 
 export interface ReportSections {
@@ -16,7 +16,10 @@ export interface ReportColumns {
   readonly rate: boolean
   readonly storyPoints: boolean
   readonly assignee: boolean
+  /** Status column, plus the "Task status" section with the progress by sprint. */
   readonly status: boolean
+  /** Tag chips next to the task titles. */
+  readonly tags: boolean
 }
 
 /** Where task descriptions go in the PDF. */
@@ -47,13 +50,19 @@ export type StoredReportOptions = Omit<ReportOptions, 'language'> & { readonly l
 export const DEFAULT_REPORT_OPTIONS: ReportOptions = {
   language: 'en',
   sections: { cover: true, summary: true, breakdown: true, workload: true, shared: true, terms: true },
-  columns: { hours: true, cost: true, rate: false, storyPoints: true, assignee: true, status: false },
+  columns: { hours: true, cost: true, rate: false, storyPoints: true, assignee: true, status: false, tags: false },
   maxDepth: null,
   subtotalDepth: 2,
   pageSize: 'A4',
   landscape: false,
   openAfterExport: true,
   descriptions: 'section'
+}
+
+/** A tag as printed: its name and the key of its color. */
+export interface ReportTag {
+  readonly name: string
+  readonly color: TagColor
 }
 
 export type ReportRow =
@@ -63,6 +72,8 @@ export type ReportRow =
       readonly depth: number
       /** Raw task title; '' = untitled (the renderer shows the localized placeholder). */
       readonly title: string
+      /** In the order of the project's tag list. */
+      readonly tags: readonly ReportTag[]
       readonly assignee: string | null
       readonly status: TaskStatus
       readonly storyPoints: number
@@ -123,6 +134,51 @@ export interface ReportSharedRow {
   readonly savedCents: number
 }
 
+/** A task in the status lanes of the "Task status" section. */
+export interface ReportLaneTask {
+  readonly code: string
+  /** Raw title ('' = untitled). */
+  readonly title: string
+  readonly isParent: boolean
+  readonly tags: readonly ReportTag[]
+}
+
+/** Net status change of a task in a sprint. */
+export interface ReportSprintChange {
+  readonly code: string
+  readonly title: string
+  readonly from: TaskStatus
+  readonly to: TaskStatus
+  readonly direction: ChangeDirection
+  readonly tags: readonly ReportTag[]
+}
+
+export interface ReportSprint {
+  /** 1, 2, 3…; 0 = changes recorded before the first sprint. */
+  readonly number: number
+  /** Local dates; `start` is null for the group before the first sprint. */
+  readonly start: string | null
+  readonly end: string
+  /** It contains the date of the report. */
+  readonly current: boolean
+  /** Sorted by WBS code; only tasks whose status at the end differs from the start. */
+  readonly changes: readonly ReportSprintChange[]
+}
+
+/** "Task status" section, built only when the status option is on. */
+export interface ReportProgress {
+  /** Local date of the report. */
+  readonly asOf: string
+  /** Every task, parents included, by its current status and sorted by WBS code. */
+  readonly lanes: Readonly<Record<TaskStatus, readonly ReportLaneTask[]>>
+  /** null = the project does not work in sprints. */
+  readonly sprintSettings: SprintSettings | null
+  /** First day of sprint 1. */
+  readonly sprintStart: string
+  /** From the first sprint to the current one, plus the group before the first sprint if it has changes. */
+  readonly sprints: readonly ReportSprint[]
+}
+
 export interface ReportModel {
   readonly generatedAt: string
   readonly options: ReportOptions
@@ -159,6 +215,8 @@ export interface ReportModel {
     readonly progress: number
   }
   readonly rows: readonly ReportRow[]
+  /** null when the status option is off. */
+  readonly progress: ReportProgress | null
   readonly workload: readonly ReportWorkloadRow[]
   readonly shared: readonly ReportSharedRow[]
   readonly team: readonly { readonly name: string; readonly role: string; readonly rateCents: number | null; readonly hoursPerDay: number }[]

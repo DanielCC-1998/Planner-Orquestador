@@ -5,6 +5,8 @@ import type { LoadedProject, ProjectRepository, RepoError } from '@application'
 export class InMemoryProjectRepository implements ProjectRepository {
   readonly store = new Map<ProjectId, ProjectState>()
   readonly trashed = new Map<ProjectId, ProjectState>()
+  /** Projects that load as if they came from a newer version of the app. */
+  readonly readOnlyIds = new Set<ProjectId>()
   saves = 0
 
   async listIds(): Promise<ProjectId[]> {
@@ -14,7 +16,7 @@ export class InMemoryProjectRepository implements ProjectRepository {
   async load(id: ProjectId): Promise<Result<LoadedProject, RepoError>> {
     const state = this.store.get(id)
     if (!state) return err({ code: 'NOT_FOUND', message: 'The project does not exist', reason: 'PROJECT_FILE_NOT_FOUND' })
-    return ok({ state, readOnly: false })
+    return ok({ state, readOnly: this.readOnlyIds.has(id) })
   }
 
   async save(id: ProjectId, state: ProjectState): Promise<void> {

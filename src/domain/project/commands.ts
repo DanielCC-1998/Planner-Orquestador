@@ -1,7 +1,8 @@
-import type { MemberId, TaskId } from '../common/primitives'
+import type { MemberId, TagId, TaskId } from '../common/primitives'
 import type { TaskPatch } from '../task/Task'
 import type { MemberInput, MemberPatch } from '../team/Member'
 import type { MetaPatch } from './Project'
+import type { TagColor, TagPatch } from './tags'
 
 export type BulkTaskPatch = Pick<TaskPatch, 'status' | 'priority' | 'assigneeId'>
 
@@ -49,5 +50,17 @@ export type Command =
   | { readonly type: 'member.update'; readonly id: MemberId; readonly patch: MemberPatch }
   | { readonly type: 'member.remove'; readonly id: MemberId; readonly reassignTo: MemberId | null }
   | { readonly type: 'project.update'; readonly patch: MetaPatch }
+  | {
+      readonly type: 'tag.create'
+      readonly name: string
+      /** Absent = the next color of the rotation. */
+      readonly color?: TagColor | undefined
+      /** Tasks that get the new tag in the same step (e.g. "Create 'X'" from a task). */
+      readonly assignTo?: readonly TaskId[] | undefined
+    }
+  | { readonly type: 'tag.update'; readonly id: TagId; readonly patch: TagPatch }
+  | { readonly type: 'tag.delete'; readonly id: TagId }
+  /** Gives the tag to the tasks (or takes it away when `assigned` is false). */
+  | { readonly type: 'tag.assign'; readonly ids: readonly TaskId[]; readonly tagId: TagId; readonly assigned: boolean }
 
 export type CommandType = Command['type']

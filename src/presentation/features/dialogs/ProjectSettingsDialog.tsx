@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { CURRENCIES, PALETTE, type MetaPatch } from '@domain'
+import { CURRENCIES, PALETTE, sprintAnchor, SPRINT_UNITS, type MetaPatch, type SprintUnit } from '@domain'
+import { localDateOf, localIsoDate } from '@shared/time'
 import { Button } from '../../components/ui/button'
 import { Dialog } from '../../components/ui/dialog'
 import { Field, Input, NativeSelect, Textarea } from '../../components/ui/input'
@@ -11,6 +12,7 @@ import { cn } from '../../lib/cn'
 import { useProject } from '../../stores/project'
 import { toast } from '../../stores/toasts'
 import { draftFromScale, draftRows, ruleOfThree, scaleFromDraft, type DraftError, type PointScaleDraft } from './pointScaleDraft'
+import { currentSprint, draftFromSprints, SPRINT_PRESETS, sprintsFromDraft, type SprintsDraft } from './sprintsDraft'
 
 const WEEKDAYS = [
   { value: 1, key: 'mon' },
@@ -22,7 +24,7 @@ const WEEKDAYS = [
   { value: 7, key: 'sun' }
 ] as const
 
-type Tab = 'general' | 'planning' | 'points' | 'quote'
+type Tab = 'general' | 'planning' | 'points' | 'sprints' | 'quote'
 
 /** Project settings. Everything is saved with a single command (a single undo step). */
 export function ProjectSettingsDialog({ onClose }: { onClose: () => void }) {
@@ -49,6 +51,7 @@ export function ProjectSettingsDialog({ onClose }: { onClose: () => void }) {
   const [validity, setValidity] = useState(meta.quote.validityDays === null ? '' : String(meta.quote.validityDays))
   const [terms, setTerms] = useState(meta.quote.terms)
   const [pointDraft, setPointDraft] = useState<PointScaleDraft>(() => draftFromScale(meta.pointScale))
+  const [sprintDraft, setSprintDraft] = useState<SprintsDraft>(() => draftFromSprints(meta.sprints))
   const weekdaysLabelId = useId()
 
   const rateCents = f.parseMoneyInput(rate)
@@ -73,13 +76,18 @@ export function ProjectSettingsDialog({ onClose }: { onClose: () => void }) {
     !e ? null : e.kind === 'zero' ? t.projectSettings.points.mustBePositive : errorText(t, e.error)
   const setOverride = (key: string, text: string) =>
     setPointDraft((d) => ({ ...d, overrides: { ...d.overrides, [key]: text } }))
-  const hasErrors = Object.values(errors).some(Boolean) || !scale.valid
+  const sprints = sprintsFromDraft(sprintDraft)
+  // Sprint 1 starts on the start date being edited here or, without one, on the day the project was created.
+  const firstSprintDay = sprintAnchor({ startDate: startDate || null, createdAt: meta.createdAt }, localDateOf)
+  const sprintNow = sprints.settings ? currentSprint(firstSprintDay, sprints.settings, localIsoDate(new Date())) : null
+  const hasErrors = Object.values(errors).some(Boolean) || !scale.valid || sprints.error !== null
 
   /** First tab with a wrong field, so the error is visible after "Save". */
   const tabWithError = (): Tab | null => {
     if (errors.name) return 'general'
     if (errors.rate || errors.hpd || errors.weekdays || errors.contingency || errors.tax) return 'planning'
     if (!scale.valid) return 'points'
+    if (sprints.error !== null) return 'sprints'
     if (errors.validity) return 'quote'
     return null
   }
@@ -106,6 +114,7 @@ export function ProjectSettingsDialog({ onClose }: { onClose: () => void }) {
       taxBps: taxBps === 'invalid' ? 0 : taxBps,
       taxLabel: taxLabel.trim(),
       pointScale: scale.scale,
+      sprints: sprints.settings,
       quote: { number: quoteNumber.trim(), date: quoteDate || null, validityDays, terms }
     }
     const delta = await dispatch({ type: 'project.update', patch })
@@ -140,6 +149,7 @@ export function ProjectSettingsDialog({ onClose }: { onClose: () => void }) {
           { value: 'general', label: t.projectSettings.tabs.general },
           { value: 'planning', label: t.projectSettings.tabs.planning },
           { value: 'points', label: t.projectSettings.tabs.points },
+          { value: 'sprints', label: t.projectSettings.tabs.sprints },
           { value: 'quote', label: t.projectSettings.tabs.quote }
         ]}
       />
@@ -311,6 +321,81 @@ export function ProjectSettingsDialog({ onClose }: { onClose: () => void }) {
             </table>
             <p className="text-xs text-muted-foreground">{t.projectSettings.points.otherValues}</p>
             <p className="text-xs text-muted-foreground">{t.projectSettings.points.offHint}</p>
+          </div>
+        ) : null}
+        {tab === 'sprints' ? (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-muted-foreground">{t.projectSettings.sprints.intro}</p>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={sprintDraft.enabled}
+                onChange={(e) => setSprintDraft((d) => ({ ...d, enabled: e.target.checked }))}
+                className="size-4 accent-[var(--primary)]"
+              />
+              {t.projectSettings.sprints.enabled}
+            </label>
+            {sprintDraft.enabled ? (
+              <>
+                <div className="flex flex-wrap items-end gap-3">
+                  <Field
+                    label={t.projectSettings.sprints.length}
+                    error={sprints.error !== null ? t.projectSettings.sprints.invalidLength(sprints.error.max) : null}
+                  >
+                    <div className="flex gap-2">
+                      <Input
+                        className="w-20"
+                        value={sprintDraft.length}
+                        inputMode="numeric"
+                        onChange={(e) => setSprintDraft((d) => ({ ...d, length: e.target.value }))}
+                        aria-invalid={sprints.error !== null ? true : undefined}
+                      />
+                      <NativeSelect
+                        className="w-36"
+                        value={sprintDraft.unit}
+                        aria-label={t.projectSettings.sprints.unit}
+                        onChange={(e) => setSprintDraft((d) => ({ ...d, unit: e.target.value as SprintUnit }))}
+                      >
+                        {SPRINT_UNITS.map((unit) => (
+                          <option key={unit} value={unit}>
+                            {t.projectSettings.sprints.units[unit]}
+                          </option>
+                        ))}
+                      </NativeSelect>
+                    </div>
+                  </Field>
+                  <div className="flex gap-1.5 pb-0.5">
+                    {SPRINT_PRESETS.map((preset) => (
+                      <Button
+                        key={`${preset.length}-${preset.unit}`}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSprintDraft({ enabled: true, length: String(preset.length), unit: preset.unit })}
+                      >
+                        {f.period(preset.length, preset.unit)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 rounded-lg bg-muted/60 p-3 text-sm">
+                  <span>
+                    {startDate
+                      ? t.projectSettings.sprints.startsOnStart(f.dateLong(firstSprintDay))
+                      : t.projectSettings.sprints.startsOnCreation(f.dateLong(firstSprintDay))}
+                  </span>
+                  {sprints.settings ? (
+                    <span className="font-medium">
+                      {sprintNow
+                        ? t.projectSettings.sprints.current(sprintNow.number, f.dateRange(sprintNow.start, sprintNow.end))
+                        : t.projectSettings.sprints.notStarted(f.dateLong(firstSprintDay))}
+                    </span>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">{t.projectSettings.sprints.offHint}</p>
+            )}
+            <p className="text-xs text-muted-foreground">{t.projectSettings.sprints.historyHint}</p>
           </div>
         ) : null}
         {tab === 'quote' ? (

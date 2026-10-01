@@ -1,6 +1,8 @@
 import type { Command, ErrorParams, Member, NewProjectInput } from '@domain'
 import type {
   Delta,
+  ImportOutcome,
+  ImportResolution,
   ProjectCard,
   ReportOptions,
   SaveStatus,
@@ -42,7 +44,10 @@ export interface Contract {
   'projects.duplicate': [Id, ProjectCard]
   'projects.trash': [Id, void]
   'projects.exportJson': [Id, { readonly path: string } | null]
-  'projects.importJson': [void, ProjectCard | null]
+  /** null = no file chosen. */
+  'projects.importJson': [void, ImportOutcome | null]
+  /** After a 'clash': what to do with the project that already exists. null = cancelled. */
+  'projects.resolveImport': [{ readonly ticket: string; readonly mode: ImportResolution }, ProjectCard | null]
   'projects.members': [Id, Member[]]
   'project.open': [Id, Snapshot]
   'project.close': [Id, void]
@@ -68,6 +73,7 @@ export const CHANNELS = [
   'projects.trash',
   'projects.exportJson',
   'projects.importJson',
+  'projects.resolveImport',
   'projects.members',
   'project.open',
   'project.close',

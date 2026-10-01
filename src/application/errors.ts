@@ -6,7 +6,8 @@ export const APP_ERROR_REASONS = [
   'READ_ONLY',
   'READ_ONLY_NEWER',
   'NOTHING_TO_UNDO',
-  'NOTHING_TO_REDO'
+  'NOTHING_TO_REDO',
+  'IMPORT_EXPIRED'
 ] as const
 
 export type AppErrorReason = (typeof APP_ERROR_REASONS)[number]
@@ -32,3 +33,7 @@ export const appError = (code: string, message: string, reason?: string, params?
 
 export const fail = (code: string, message: string, reason?: string, params?: ErrorParams): Result<never, AppError> =>
   err(appError(code, message, reason, params))
+
+/** The project comes from a newer version of the app: it cannot be changed, exported or copied. */
+export const readOnlyNewer = (): Result<never, AppError> =>
+  fail('READ_ONLY', 'This project was created with a newer version of the app and is read-only', 'READ_ONLY_NEWER')

@@ -25,7 +25,7 @@ export function Tooltip({
         <T.Content
           side={side}
           sideOffset={5}
-          className="z-[60] max-w-xs rounded-md bg-foreground px-2 py-1 text-xs leading-snug text-background shadow-lg data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0"
+          className="z-[60] max-w-xs rounded-md bg-foreground px-2 py-1 text-xs leading-snug text-background shadow-lg wrap-anywhere data-[state=delayed-open]:animate-in data-[state=delayed-open]:fade-in-0"
         >
           {content}
         </T.Content>

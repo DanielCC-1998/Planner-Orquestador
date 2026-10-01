@@ -27,6 +27,16 @@ const UNKNOWN_ID = '00000000-0000-4000-8000-ffffffffffff'
 
 const run = (cmd: Command) => apply(state, cmd, testContext())
 const createTask = (fields: TaskPatch) => run({ type: 'task.create', parentId: null, fields })
+/** The scenario with `n` project tags called tag0, tag1… */
+function withTags(n: number) {
+  let s = state
+  for (let i = 0; i < n; i++) {
+    const r = apply(s, { type: 'tag.create', name: `tag${i}` }, testContext())
+    if (!r.ok) throw new Error(r.error.message)
+    s = r.value.state
+  }
+  return s
+}
 const addMember = (fields: MemberInput) => run({ type: 'member.add', fields })
 const updateProject = (patch: MetaPatch) => run({ type: 'project.update', patch })
 const updateQuote = (quote: Partial<QuoteInfo>) => updateProject({ quote: { ...state.meta.quote, ...quote } })
@@ -48,9 +58,27 @@ const CASES: Readonly<Record<DomainErrorReason, Case>> = {
   INVALID_ESTIMATE: { code: 'INVALID', result: () => createTask({ estimateMinutes: 1.5 }) },
   UNKNOWN_ASSIGNEE: { code: 'INVALID', result: () => createTask({ assigneeId: UNKNOWN_ID }) },
   INVALID_RATE: { code: 'INVALID', result: () => createTask({ rateCents: -100 }) },
-  INVALID_TAGS: { code: 'INVALID', result: () => createTask({ tags: 'urgent' as unknown as string[] }) },
-  TAG_TOO_LONG: { code: 'INVALID', result: () => createTask({ tags: ['x'.repeat(41)] }) },
-  TOO_MANY_TAGS: { code: 'INVALID', result: () => createTask({ tags: Array.from({ length: 21 }, (_, i) => `tag${i}`) }) },
+  INVALID_TAGS: { code: 'INVALID', result: () => createTask({ tagIds: 'urgent' as unknown as string[] }) },
+  TAG_TOO_LONG: { code: 'INVALID', result: () => run({ type: 'tag.create', name: 'x'.repeat(41) }) },
+  TOO_MANY_TAGS: {
+    code: 'INVALID',
+    result: () => {
+      const tagged = withTags(21)
+      return apply(tagged, { type: 'task.create', parentId: null, fields: { tagIds: tagged.meta.tags.map((t) => t.id) } }, testContext())
+    },
+    params: { max: 20 }
+  },
+  TAG_EXISTS: {
+    code: 'INVALID',
+    result: () => apply(withTags(1), { type: 'tag.create', name: ' TAG0 ' }, testContext()),
+    params: { name: 'TAG0' }
+  },
+  UNKNOWN_TAG: { code: 'INVALID', result: () => createTask({ tagIds: ['tag-404'] }) },
+  TOO_MANY_PROJECT_TAGS: {
+    code: 'INVALID',
+    result: () => apply(withTags(200), { type: 'tag.create', name: 'one more' }, testContext()),
+    params: { max: 200 }
+  },
   NAME_REQUIRED: { code: 'INVALID', result: () => addMember({ name: '   ' }) },
   NAME_TOO_LONG: { code: 'INVALID', result: () => addMember({ name: 'x'.repeat(101) }) },
   ROLE_TOO_LONG: { code: 'INVALID', result: () => addMember({ name: 'Ann', role: 'x'.repeat(101) }) },
@@ -91,6 +119,7 @@ const CASES: Readonly<Record<DomainErrorReason, Case>> = {
     code: 'INVALID',
     result: () => updateProject({ pointScale: { minutesPerPoint: 120, overrides: [{ points: 1, minutes: 60 }] } })
   },
+  INVALID_SPRINTS: { code: 'INVALID', result: () => updateProject({ sprints: { length: 53, unit: 'week' } }) },
   CYCLE_MOVE: {
     code: 'CYCLE',
     result: () => run({ type: 'edge.move', childId: ids.login, fromParentId: null, toParentId: ids.form, index: 0 })

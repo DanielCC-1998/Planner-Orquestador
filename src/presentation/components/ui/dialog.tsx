@@ -37,10 +37,11 @@ export function Dialog({
           )}
         >
           <div className="flex items-start justify-between gap-4 border-b px-5 py-4">
+            {/* Titles and descriptions may carry task names: long words wrap instead of overflowing. */}
             <div className="min-w-0">
-              <D.Title className="text-base font-semibold">{title}</D.Title>
+              <D.Title className="text-base font-semibold wrap-anywhere">{title}</D.Title>
               {description ? (
-                <D.Description className="mt-0.5 text-sm text-muted-foreground">{description}</D.Description>
+                <D.Description className="mt-0.5 text-sm text-muted-foreground wrap-anywhere">{description}</D.Description>
               ) : (
                 <D.Description className="sr-only">{typeof title === 'string' ? title : t.components.dialog}</D.Description>
               )}

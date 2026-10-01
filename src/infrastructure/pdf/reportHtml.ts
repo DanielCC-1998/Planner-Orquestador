@@ -1,6 +1,8 @@
+import { TASK_STATUSES, type TaskStatus } from '@domain'
 import { STATUS_LABELS } from '@shared/labels'
 import { createFormatter, type Formatter } from '@shared/format'
-import type { ReportModel, ReportRow } from '@application'
+import { TAG_PALETTE } from '@shared/tagPalette'
+import type { ReportLaneTask, ReportModel, ReportProgress, ReportRow, ReportSprint, ReportTag } from '@application'
 import { reportCss } from './reportCss'
 import { escapeHtml, renderDescriptionHtml } from './descriptionHtml'
 import { REPORT_TEXT, type ReportText } from './reportText'
@@ -8,6 +10,17 @@ import { REPORT_TEXT, type ReportText } from './reportText'
 const e = escapeHtml
 
 type TaskRow = Extract<ReportRow, { kind: 'task' }>
+
+/** Colored chips of the tags of a task ('' when the option is off or it has none). */
+function chips(model: ReportModel, tags: readonly ReportTag[]): string {
+  if (!model.options.columns.tags) return ''
+  return tags
+    .map((tag) => {
+      const c = TAG_PALETTE[tag.color]
+      return `<span class="chip" style="background:${c.bg};color:${c.fg}">${e(tag.name)}</span>`
+    })
+    .join('')
+}
 
 /** Formatter and texts in the language of the report. */
 interface Locale {
@@ -213,7 +226,7 @@ function breakdownSection(model: ReportModel): string {
           : ''
         return `<tr class="${cls}">
   <td class="code">${e(row.code)}</td>
-  <td class="title" style="padding-left:${6 + pad}pt">${e(row.title)}${collapsed}</td>
+  <td class="title" style="padding-left:${6 + pad}pt">${e(row.title)}${chips(model, row.tags)}${collapsed}</td>
   ${c.assignee ? `<td>${row.assignee ? e(row.assignee) : '<span class="muted">—</span>'}</td>` : ''}
   ${c.status ? `<td class="status">${e(statusLabels[row.status])}</td>` : ''}
   ${valueCells(row.storyPoints || null, row.minutes, own && row.minutes === 0 ? null : row.rateCents, row.costCents, own)}
@@ -276,8 +289,10 @@ function detailsSection(model: ReportModel): string {
       ]
         .filter(Boolean)
         .join(' · ')
+      const tags = chips(model, r.tags)
       return `<article class="detail${r.depth === 1 ? ' level-1' : ''}">
   <header><span class="dcode">${e(r.code)}</span><span class="dtitle">${e(r.title)}</span>${meta ? `<span class="meta">${meta}</span>` : ''}</header>
+  ${tags ? `<div class="chips">${tags}</div>` : ''}
   ${r.path.length ? `<div class="path">${e(r.path.join(' › '))}</div>` : ''}
   <div class="desc">${renderDescriptionHtml(r.description)}</div>
 </article>`
@@ -288,6 +303,131 @@ function detailsSection(model: ReportModel): string {
   <h2>${e(text.details.title)}</h2>
   <p class="small muted">${e(text.details.intro)}</p>
   ${body}
+</section>`
+}
+
+/** Status pill ("To do", "Done"…) in the colors of the PDF. */
+function pill(model: ReportModel, status: TaskStatus): string {
+  return `<span class="pill ${status}">${e(STATUS_LABELS[model.options.language][status])}</span>`
+}
+
+/** One sprint: the head repeats on every page the table spans; one row per net status change. */
+function sprintTable(model: ReportModel, sprint: ReportSprint): string {
+  const { f, text } = localeOf(model)
+  const t = text.progress
+  const name = sprint.number === 0 ? t.beforeFirst : t.sprint(sprint.number)
+  const when = sprint.start ? f.dateRange(sprint.start, sprint.end) : ''
+  const finished = sprint.changes.filter((c) => c.to === 'done').length
+  const forward = sprint.changes.filter((c) => c.direction === 'forward' && c.to !== 'done').length
+  const backward = sprint.changes.filter((c) => c.direction === 'backward').length
+  const counts = [finished ? t.finished(finished) : '', forward ? t.forward(forward) : '', backward ? t.backward(backward) : '']
+    .filter(Boolean)
+    .join(' · ')
+  const rows = sprint.changes.length
+    ? sprint.changes
+        .map(
+          (c) => `<tr class="${c.direction}">
+  <td class="code">${e(c.code)}</td>
+  <td class="title">${e(c.title)}${chips(model, c.tags)}</td>
+  <td class="change"><span class="dir ${c.direction}">${c.direction === 'forward' ? '▲' : '▼'}</span>${pill(model, c.from)}<span class="arrow ${c.direction}">→</span>${pill(model, c.to)}${
+    c.direction === 'backward' ? `<span class="back">${e(t.movedBack)}</span>` : ''
+  }</td>
+</tr>`
+        )
+        .join('\n')
+    : `<tr><td colspan="3" class="muted">${e(t.noChanges)}</td></tr>`
+  return `
+<table class="sprint">
+  <thead><tr class="sprint-head"><th colspan="3"><div class="sh"><span><b>${e(name)}</b>${when ? `<span class="when">${e(when)}</span>` : ''}${
+    sprint.current ? `<span class="current">${e(t.current)}</span>` : ''
+  }</span>${counts ? `<span class="counts">${e(counts)}</span>` : ''}</div></th></tr></thead>
+  <tbody>
+${rows}
+  </tbody>
+</table>`
+}
+
+/** A run of sprints without changes in a single line: "Sprints 4–6 · Oct 1 – Nov 11, 2026 · No status changes". */
+function quietSprints(model: ReportModel, run: readonly ReportSprint[]): string {
+  const { f, text } = localeOf(model)
+  const t = text.progress
+  const first = run[0]!
+  const last = run[run.length - 1]!
+  const name = run.length === 1 ? t.sprint(first.number) : t.sprintRange(first.number, last.number)
+  const when = first.start ? f.dateRange(first.start, last.end) : ''
+  return `<p class="quiet"><b>${e(name)}</b>${when ? ` · ${e(when)}` : ''} · ${e(t.noChanges)}</p>`
+}
+
+function sprintsPart(model: ReportModel, progress: ReportProgress): string {
+  const { f, text } = localeOf(model)
+  const t = text.progress
+  const head = `<h3>${e(t.sprintsTitle)}</h3>`
+  if (!progress.sprintSettings) return `${head}<p class="small muted">${e(t.noSprints)}</p>`
+  const blocks: string[] = []
+  let quiet: ReportSprint[] = []
+  const flush = () => {
+    if (quiet.length > 0) blocks.push(quietSprints(model, quiet))
+    quiet = []
+  }
+  for (const sprint of progress.sprints) {
+    // The current sprint is always shown, so the reader sees where the project is.
+    if (sprint.changes.length === 0 && !sprint.current) {
+      quiet.push(sprint)
+      continue
+    }
+    flush()
+    blocks.push(sprintTable(model, sprint))
+  }
+  flush()
+  const firstSprint = progress.sprints.some((s) => s.number > 0)
+    ? ''
+    : `<p class="small muted">${t.firstSprintStarts(e(f.date(progress.sprintStart)))}</p>`
+  return `${head}<p class="small muted">${e(t.sprintsIntro)}</p>${firstSprint}${blocks.join('\n')}`
+}
+
+/**
+ * "Task status": every task in a lane by status (three columns per lane, so it stays compact with
+ * hundreds of tasks) and the net status changes of each sprint. Shown when the status option is on.
+ */
+function progressSection(model: ReportModel): string {
+  const progress = model.progress
+  if (!progress) return ''
+  const { f, text } = localeOf(model)
+  const t = text.progress
+  const labels = STATUS_LABELS[model.options.language]
+  const count = (s: TaskStatus) => progress.lanes[s].length
+  const total = TASK_STATUSES.reduce((n, s) => n + count(s), 0)
+  const share = (n: number) => (total === 0 ? 0 : n / total)
+  const stack = TASK_STATUSES.filter((s) => count(s) > 0)
+    .map((s) => `<i class="${s}" style="width:${(share(count(s)) * 100).toFixed(3)}%"></i>`)
+    .join('')
+  const legend = TASK_STATUSES.map(
+    (s) => `<span><span class="dot ${s}"></span>${e(labels[s])} <b>${f.number(count(s))}</b> (${f.percent(share(count(s)))})</span>`
+  ).join('')
+  const lanes = TASK_STATUSES.map((s) => {
+    const tasks = progress.lanes[s]
+    const list = tasks.length
+      ? `<ul>${tasks
+          .map(
+            (task) =>
+              `<li${task.isParent ? ' class="parent"' : ''}><span class="lcode">${e(task.code)}</span><span class="ltitle">${e(task.title)}</span>${chips(model, task.tags)}</li>`
+          )
+          .join('')}</ul>`
+      : `<p class="empty">${e(t.emptyLane)}</p>`
+    return `<div class="lane ${s}"><h3><span class="dot ${s}"></span>${e(labels[s])} · ${f.number(tasks.length)}</h3>${list}</div>`
+  }).join('\n')
+  const settings = progress.sprintSettings
+  const rhythm = settings
+    ? ` · ${t.rhythm(e(f.period(settings.length, settings.unit)), e(f.date(progress.sprintStart)))}`
+    : ''
+  return `
+<section class="progress">
+  <h2>${e(t.title)}</h2>
+  <p class="small muted">${t.asOf(e(f.date(progress.asOf)))}${rhythm}</p>
+  <div class="stack">${stack}</div>
+  <div class="legend"><span class="muted">${e(t.byCount)}:</span>${legend}</div>
+  ${lanes}
+  ${sprintsPart(model, progress)}
 </section>`
 }
 
@@ -378,6 +518,19 @@ function termsSection(model: ReportModel, flow: boolean): string {
 </section>`
 }
 
+function progressWithTitles(progress: ReportProgress, title: (raw: string) => string): ReportProgress {
+  const lanes = {} as Record<TaskStatus, ReportLaneTask[]>
+  for (const s of TASK_STATUSES) lanes[s] = progress.lanes[s].map((task) => ({ ...task, title: title(task.title) }))
+  return {
+    ...progress,
+    lanes,
+    sprints: progress.sprints.map((sprint) => ({
+      ...sprint,
+      changes: sprint.changes.map((c) => ({ ...c, title: title(c.title) }))
+    }))
+  }
+}
+
 /**
  * The model carries raw data: untitled tasks have '' as title, the unassigned group has no name
  * and an empty tax label means the default one. This fills in the localized placeholders.
@@ -400,6 +553,7 @@ function withPlaceholders(model: ReportModel): ReportModel {
         ? { ...r, title: titleOrPlaceholder(r.title), path: r.path.map(titleOrPlaceholder) }
         : { ...r, title: titleOrPlaceholder(r.title) }
     ),
+    progress: model.progress && progressWithTitles(model.progress, titleOrPlaceholder),
     workload: model.workload.map((w) => (w.isUnassigned ? { ...w, name: text.unassigned } : w)),
     shared: model.shared.map((s) => ({
       ...s,
@@ -424,6 +578,7 @@ export function renderReportHtml(raw: ReportModel): string {
   if (s.summary) parts.push(summarySection(model, false))
   if (s.breakdown) parts.push(breakdownSection(model))
   if (model.options.descriptions === 'section') parts.push(detailsSection(model))
+  parts.push(progressSection(model))
   if (s.workload) parts.push(workloadSection(model, false))
   if (s.shared) parts.push(sharedSection(model, true))
   if (s.terms) parts.push(termsSection(model, true))

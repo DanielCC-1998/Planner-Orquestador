@@ -14,6 +14,7 @@ import {
 } from '@application'
 import type { AppInfo, Channel, Input, IpcResult, Output } from '@shared/ipc/contract'
 import { MAIN_TEXT } from '../i18n/mainText'
+import { atomicWrite } from '../persistence/json/atomicWrite'
 import { reportFileName } from '../pdf/reportText'
 import type { Dialogs } from './dialogs'
 import {
@@ -21,6 +22,7 @@ import {
   ExportPdfInputSchema,
   IdInputSchema,
   NewProjectSchema,
+  ResolveImportSchema,
   SettingsPatchSchema,
   VoidSchema
 } from './inputSchemas'
@@ -97,7 +99,8 @@ export function registerIpc(ipcMain: IpcMain, deps: IpcDeps): void {
     if (!exported.ok) return exported
     const path = await deps.dialogs.saveFile(exported.value.fileName, { name: t.projectFileFilter, extensions: ['json'] })
     if (!path) return ok(null)
-    await writeFile(path, exported.value.content, 'utf8')
+    // A backup that is either complete or not there; no .bak next to it in the user's folder.
+    await atomicWrite(path, exported.value.content, false)
     return ok({ path })
   })
 
@@ -106,9 +109,12 @@ export function registerIpc(ipcMain: IpcMain, deps: IpcDeps): void {
     const path = await deps.dialogs.openFile({ name: t.projectFileFilter, extensions: ['json'] })
     if (!path) return ok(null)
     if ((await stat(path)).size > MAX_IMPORT_BYTES) return fail('TOO_BIG', 'The file is too large', 'FILE_TOO_BIG')
-    const imported = await deps.catalog.importJson(await readFile(path, 'utf8'), t.importedName)
-    return imported.ok ? ok(imported.value) : imported
+    return deps.catalog.importJson(await readFile(path, 'utf8'))
   })
+
+  handle('projects.resolveImport', ResolveImportSchema, async ({ ticket, mode }) =>
+    deps.catalog.resolveImport(ticket, mode, (await text()).importedName)
+  )
 
   handle('project.open', IdInputSchema, ({ id }) => deps.sessions.open(id))
   handle('project.close', IdInputSchema, async ({ id }) => ok(deps.sessions.close(id)))

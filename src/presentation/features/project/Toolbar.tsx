@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { ArrowLeft, ArrowRight, ChevronsDownUp, ChevronsUpDown, Filter, KanbanSquare, ListTree, NotebookText, Plus, Search, Users, X } from 'lucide-react'
 import { TASK_STATUSES } from '@domain'
+import { TagChip } from '../../components/TagChip'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import {
@@ -38,8 +40,14 @@ export function Toolbar() {
   const showDescriptions = useUi((s) => s.showDescriptions)
   const toggleDescriptions = useUi((s) => s.toggleDescriptions)
   const members = [...state.members.values()]
+  const tags = useProject((s) => s.tags)
+  // A tag that no longer exists (deleted, or its creation undone) leaves the filter: it could not be unticked.
+  useEffect(() => {
+    const known = filters.tags.filter((id) => tags.some((tag) => tag.id === id))
+    if (known.length !== filters.tags.length) setFilters({ tags: known })
+  }, [tags, filters.tags, setFilters])
   const active = hasActiveFilters(filters)
-  const filterCount = filters.assignees.length + filters.statuses.length + filters.flags.length
+  const filterCount = filters.assignees.length + filters.statuses.length + filters.tags.length + filters.flags.length
   const alt = t.common.keys.alt
   const flagOptions: ReadonlyArray<{ flag: FilterFlag; label: string }> = [
     { flag: 'unestimated', label: t.toolbar.unestimated },
@@ -84,7 +92,7 @@ export function Toolbar() {
             <Filter /> {t.toolbar.filters} {filterCount > 0 ? <Badge tone="primary">{filterCount}</Badge> : null}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-60">
+        <DropdownMenuContent className="max-h-[75vh] w-60 overflow-y-auto">
           <DropdownMenuLabel>{t.toolbar.assignee}</DropdownMenuLabel>
           {members.map((m) => (
             <DropdownMenuCheckItem
@@ -115,6 +123,22 @@ export function Toolbar() {
               {t.status[s]}
             </DropdownMenuCheckItem>
           ))}
+          {tags.length > 0 ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>{t.tags.button}</DropdownMenuLabel>
+              {tags.map((tag) => (
+                <DropdownMenuCheckItem
+                  key={tag.id}
+                  checked={filters.tags.includes(tag.id)}
+                  onSelect={(e) => e.preventDefault()}
+                  onCheckedChange={() => setFilters({ tags: toggle(filters.tags, tag.id) })}
+                >
+                  <TagChip name={tag.name} color={tag.color} size="xs" />
+                </DropdownMenuCheckItem>
+              ))}
+            </>
+          ) : null}
           <DropdownMenuSeparator />
           <DropdownMenuLabel>{t.toolbar.warnings}</DropdownMenuLabel>
           {flagOptions.map(({ flag, label }) => (

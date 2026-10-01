@@ -1,6 +1,6 @@
 import fc from 'fast-check'
 import { TaskGraph, type StructureDTO } from '@domain/graph/TaskGraph'
-import { TASK_STATUSES, type Member, type PointScale, type ProjectState, type Task } from '@domain'
+import { TAG_COLORS, TASK_STATUSES, type Member, type PointScale, type ProjectState, type TagDef, type Task } from '@domain'
 import { newState } from '@tests/support/builders'
 
 const uuid = (i: number, prefix: string) => `${prefix}-0000-4000-8000-${i.toString(16).padStart(12, '0')}`
@@ -56,19 +56,23 @@ export function projectArb(maxTasks = 40, maxParents = 3): fc.Arbitrary<Generate
         rateCents: rnd(3) === 0 ? null : rnd(15_000),
         hoursPerDay: 1 + rnd(8)
       }))
+      // Up to 3 project tags, given at random to the tasks.
+      const tags: TagDef[] = Array.from({ length: rnd(4) }, (_, i) => ({ id: `tag-${i + 1}`, name: `Tag ${i + 1}`, color: TAG_COLORS[i]! }))
       const tasks = new Map<string, Task>()
       for (const id of ids) {
+        const status = TASK_STATUSES[rnd(4)]!
         tasks.set(id, {
           id,
           title: `T ${id.slice(-4)}`,
           description: '',
-          status: TASK_STATUSES[rnd(4)]!,
+          status,
           priority: 'medium',
           storyPoints: rnd(4) === 0 ? null : rnd(14),
           estimateMinutes: rnd(4) === 0 ? null : rnd(600),
           assigneeId: members > 0 && rnd(3) > 0 ? memberUuid(rnd(members)) : null,
           rateCents: rnd(5) === 0 ? rnd(10_000) : null,
-          tags: [],
+          tagIds: tags.filter(() => rnd(2) === 0).map((t) => t.id),
+          statusHistory: [{ at: '2026-01-01T00:00:00.000Z', from: null, to: status }],
           createdAt: '2026-01-01T00:00:00.000Z',
           updatedAt: '2026-01-01T00:00:00.000Z'
         })
@@ -81,7 +85,7 @@ export function projectArb(maxTasks = 40, maxParents = 3): fc.Arbitrary<Generate
       const base = newState({ defaultRateCents: defaultRate })
       const state: ProjectState = {
         ...base,
-        meta: { ...base.meta, contingencyBps, pointScale },
+        meta: { ...base.meta, contingencyBps, pointScale, tags },
         members: new Map(memberList.map((m) => [m.id, m])),
         tasks,
         graph: g.value

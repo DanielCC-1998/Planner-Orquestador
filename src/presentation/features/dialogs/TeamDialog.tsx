@@ -3,10 +3,10 @@ import { Download, Plus, Trash2 } from 'lucide-react'
 import { PALETTE, type Member, type MemberPatch } from '@domain'
 import { DraftInput } from '../../components/DraftField'
 import { Rich } from '../../components/Rich'
+import { SwatchPicker, type Swatch } from '../../components/SwatchPicker'
 import { Button } from '../../components/ui/button'
 import { Dialog } from '../../components/ui/dialog'
 import { Input, NativeSelect } from '../../components/ui/input'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../../components/ui/menu'
 import { useI18n } from '../../i18n'
 import { describeError } from '../../i18n/errors'
 import { call } from '../../lib/api'
@@ -19,23 +19,8 @@ const TEAM_GRID = 'grid grid-cols-[28px_1.4fr_1fr_110px_90px_96px] gap-2'
 
 function ColorPicker({ color, onChange }: { color: string; onChange: (c: string) => void }) {
   const { t } = useI18n()
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="size-6 shrink-0 rounded-full ring-2 ring-card"
-          style={{ backgroundColor: color }}
-          aria-label={t.team.color}
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="grid min-w-0 grid-cols-6 gap-1.5 p-2">
-        {PALETTE.map((c) => (
-          <button key={c} type="button" onClick={() => onChange(c)} className="size-6 rounded-full" style={{ backgroundColor: c }} aria-label={c} />
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
+  const swatches = PALETTE.map((c): Swatch<string> => ({ value: c, color: c, ink: '#ffffff', label: t.projects.create.colorOption(c) }))
+  return <SwatchPicker value={color} swatches={swatches} onChange={onChange} label={t.team.color} />
 }
 
 function MemberRow({ member, others }: { member: Member; others: Member[] }) {

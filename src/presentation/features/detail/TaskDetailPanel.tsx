@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import {
   ArrowUpRight,
   CopyPlus,
@@ -23,6 +23,7 @@ import {
   progressOf,
   scheduleFor,
   sumMetrics,
+  tagsOfTask,
   TASK_STATUSES,
   workloadFor,
   type Priority,
@@ -31,17 +32,19 @@ import {
 } from '@domain'
 import { DraftInput, DraftTextarea } from '../../components/DraftField'
 import { Rich } from '../../components/Rich'
+import { TagChip } from '../../components/TagChip'
 import { Button } from '../../components/ui/button'
 import { Field, NativeSelect } from '../../components/ui/input'
 import { ProgressBar, Tooltip } from '../../components/ui/misc'
 import { useI18n } from '../../i18n'
 import { describeError } from '../../i18n/errors'
 import { cn } from '../../lib/cn'
+import { clampDetailWidth, DETAIL_WIDTH, useLayout } from '../../stores/layout'
 import { useProject } from '../../stores/project'
 import { useUi } from '../../stores/ui'
+import { TagPicker } from '../tags/TagPicker'
 import * as actions from '../tree/actions'
 import { canonicalKey, canonicalPath, type TreeRow } from '../tree/flatten'
-
 
 /** Synthetic row to reuse the tree actions from the panel (canonical appearance). */
 function canonicalRow(id: string): TreeRow | null {
@@ -66,6 +69,60 @@ function canonicalRow(id: string): TreeRow | null {
     branch: 0,
     context: false
   }
+}
+
+/**
+ * The panel, with the width the user left it at (CSS keeps it between 320 px and 60% of the window).
+ * Its left edge is a grip: dragging changes the width live (only this element) and saves it when
+ * released; double click goes back to the default.
+ */
+function DetailAside({ children, className, label }: { children: React.ReactNode; className?: string; label?: string }) {
+  const { t } = useI18n()
+  const width = useLayout((s) => s.detailWidth)
+  const ref = useRef<HTMLElement>(null)
+
+  const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    const handle = e.currentTarget
+    const fromX = e.clientX
+    const fromWidth = ref.current?.getBoundingClientRect().width ?? width
+    let next = fromWidth
+    const move = (ev: PointerEvent) => {
+      next = clampDetailWidth(fromWidth + fromX - ev.clientX, window.innerWidth)
+      if (ref.current) ref.current.style.width = `${next}px`
+    }
+    const end = () => {
+      handle.removeEventListener('pointermove', move)
+      handle.removeEventListener('pointerup', end)
+      handle.removeEventListener('pointercancel', end)
+      useLayout.getState().setDetailWidth(next)
+    }
+    handle.setPointerCapture(e.pointerId)
+    handle.addEventListener('pointermove', move)
+    handle.addEventListener('pointerup', end)
+    handle.addEventListener('pointercancel', end)
+  }
+
+  return (
+    <aside
+      ref={ref}
+      aria-label={label}
+      className={cn('relative flex min-w-80 max-w-[60vw] shrink-0 flex-col border-l bg-card', className)}
+      style={{ width }}
+    >
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={t.detail.resizePanel}
+        data-resize="detail"
+        onPointerDown={startResize}
+        onDoubleClick={() => useLayout.getState().setDetailWidth(DETAIL_WIDTH.initial)}
+        className="absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize touch-none hover:bg-primary/30"
+      />
+      {children}
+    </aside>
+  )
 }
 
 function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
@@ -96,6 +153,7 @@ export function TaskDetailPanel() {
   const est = useProject((s) => s.estimation)!
   const readOnly = useProject((s) => s.readOnly)
   const dispatch = useProject((s) => s.dispatch)
+  const projectTags = useProject((s) => s.tags)
   const selectedId = useUi((s) => s.selectedId)
   const setDetailOpen = useUi((s) => s.setDetailOpen)
   const openDialog = useUi((s) => s.openDialog)
@@ -111,9 +169,9 @@ export function TaskDetailPanel() {
 
   if (!task || !branch) {
     return (
-      <aside className="flex w-[400px] shrink-0 flex-col items-center justify-center border-l bg-card p-6 text-center text-sm text-muted-foreground">
+      <DetailAside className="items-center justify-center p-6 text-center text-sm text-muted-foreground">
         {t.detail.noSelection}
-      </aside>
+      </DetailAside>
     )
   }
 
@@ -153,7 +211,7 @@ export function TaskDetailPanel() {
   const row = () => canonicalRow(id)
 
   return (
-    <aside className="flex w-[400px] shrink-0 flex-col border-l bg-card" aria-label={t.detail.label}>
+    <DetailAside label={t.detail.label}>
       <div className="flex items-start gap-2 px-4 pb-2 pt-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -190,8 +248,8 @@ export function TaskDetailPanel() {
             submitOnEnter
             disabled={readOnly}
             placeholder={t.detail.titlePlaceholder}
-            className="min-h-0 resize-none border-transparent bg-transparent px-0 text-lg font-semibold shadow-none focus-visible:border-input focus-visible:px-2"
-            rows={Math.min(4, Math.max(1, Math.ceil((task.title.length || 1) / 34)))}
+            className="field-sizing-content min-h-0 resize-none border-transparent bg-transparent px-0 text-lg font-semibold shadow-none wrap-anywhere focus-visible:border-input focus-visible:px-2"
+            rows={1}
             onCommit={(title) => void patch({ title })}
           />
           <div className="grid grid-cols-2 gap-3">
@@ -387,7 +445,7 @@ export function TaskDetailPanel() {
                       <Star className={cn('size-4', i === 0 && 'fill-current')} />
                     </button>
                   </Tooltip>
-                  <button type="button" className="min-w-0 flex-1 truncate text-left text-sm" onClick={() => actions.revealTask(pid)}>
+                  <button type="button" className="min-w-0 flex-1 text-left text-sm wrap-anywhere" onClick={() => actions.revealTask(pid)}>
                     <span className="mr-1.5 tabular-nums text-muted-foreground">{est.codes.get(pid)}</span>
                     {state.tasks.get(pid)?.title || t.common.untitled}
                   </button>
@@ -431,11 +489,11 @@ export function TaskDetailPanel() {
                       useUi.getState().select(`${canonicalKey(state.graph, id)}/${cid}`, cid)
                       useUi.getState().requestScroll(`${canonicalKey(state.graph, id)}/${cid}`)
                     }}
-                    className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-accent/60"
+                    className="flex w-full items-start gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-accent/60"
                   >
-                    <span className="w-10 shrink-0 text-xs tabular-nums text-muted-foreground">{`${code}.${i + 1}`}</span>
-                    {shared ? <ArrowUpRight className="size-3.5 shrink-0 text-shared" /> : null}
-                    <span className={cn('min-w-0 flex-1 truncate', shared && 'italic text-muted-foreground')}>
+                    <span className="w-10 shrink-0 pt-px text-xs tabular-nums text-muted-foreground">{`${code}.${i + 1}`}</span>
+                    {shared ? <ArrowUpRight className="mt-0.5 size-3.5 shrink-0 text-shared" /> : null}
+                    <span className={cn('min-w-0 flex-1 wrap-anywhere', shared && 'italic text-muted-foreground')}>
                       {state.tasks.get(cid)?.title || t.common.untitled}
                     </span>
                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -462,16 +520,36 @@ export function TaskDetailPanel() {
         </Section>
 
         <Section title={t.detail.tags}>
-          <DraftInput
-            key={`tags-${id}`}
-            value={task.tags.join(', ')}
-            disabled={readOnly}
-            placeholder={t.detail.tagsPlaceholder}
-            onCommit={(text) => {
-              void patch({ tags: text.split(',').map((tag) => tag.trim()).filter(Boolean) })
-              return null
-            }}
-          />
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Relative commands (give / take one tag), so quick clicks never overwrite each other. */}
+            {tagsOfTask(projectTags, task.tagIds).map((tag) =>
+              readOnly ? (
+                <TagChip key={tag.id} name={tag.name} color={tag.color} />
+              ) : (
+                <TagChip
+                  key={tag.id}
+                  name={tag.name}
+                  color={tag.color}
+                  removeLabel={t.tags.remove(tag.name)}
+                  onRemove={() => void dispatch({ type: 'tag.assign', ids: [id], tagId: tag.id, assigned: false })}
+                />
+              )
+            )}
+            {!readOnly ? (
+              <TagPicker
+                tags={projectTags}
+                stateOf={(tagId) => (task.tagIds.includes(tagId) ? 'on' : 'off')}
+                onToggle={(tag, assign) => void dispatch({ type: 'tag.assign', ids: [id], tagId: tag.id, assigned: assign })}
+                onCreate={(name) => void dispatch({ type: 'tag.create', name, assignTo: [id] })}
+              >
+                <Button variant="outline" size="sm" className="h-6 rounded-full px-2 text-xs">
+                  <Plus /> {t.tags.add}
+                </Button>
+              </TagPicker>
+            ) : task.tagIds.length === 0 ? (
+              <span className="text-xs text-muted-foreground">—</span>
+            ) : null}
+          </div>
         </Section>
 
         {!readOnly ? (
@@ -510,6 +588,6 @@ export function TaskDetailPanel() {
           </div>
         ) : null}
       </div>
-    </aside>
+    </DetailAside>
   )
 }

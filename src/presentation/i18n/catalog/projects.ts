@@ -8,7 +8,7 @@ export const en = {
   sort: { recent: 'Most recent', name: 'By name', cost: 'By cost' },
   showActive: 'Show active',
   showArchived: (count: number) => `Archived (${count})`,
-  import: 'Import',
+  import: 'Import backup…',
   newProject: 'New project',
   empty: {
     title: 'Create your first project',
@@ -21,7 +21,7 @@ export const en = {
     open: 'Open',
     duplicate: 'Duplicate',
     exportPdf: 'Export PDF…',
-    exportJson: 'Export JSON…',
+    exportJson: 'Export backup…',
     archive: 'Archive',
     restore: 'Restore',
     delete: 'Delete…',
@@ -45,8 +45,17 @@ export const en = {
     trashed: 'Project moved to trash',
     duplicated: (name: string) => `Project duplicated: ${name}`,
     imported: (name: string) => `Project imported: ${name}`,
-    exportedJson: 'Project exported as JSON',
+    replaced: (name: string) => `Project replaced by the backup: ${name}`,
+    exportedJson: (path: string) => `Backup saved: ${path}`,
     readOnly: 'Project from a newer version: it opens in read-only mode'
+  },
+  /** Importing a backup of a project that already exists. */
+  clash: {
+    title: (name: string) => `“${name}” already exists`,
+    description:
+      'The file is a backup of a project you already have. Replace it with the backup (the current version goes to the trash in the data folder) or keep both (the backup is added with a new name).',
+    replace: 'Replace',
+    keepBoth: 'Keep both'
   },
   create: {
     title: 'New project',
@@ -79,7 +88,7 @@ export const es: typeof en = {
   sort: { recent: 'Más recientes', name: 'Por nombre', cost: 'Por coste' },
   showActive: 'Ver activos',
   showArchived: (count) => `Archivados (${count})`,
-  import: 'Importar',
+  import: 'Importar copia…',
   newProject: 'Nuevo proyecto',
   empty: {
     title: 'Crea tu primer proyecto',
@@ -92,7 +101,7 @@ export const es: typeof en = {
     open: 'Abrir',
     duplicate: 'Duplicar',
     exportPdf: 'Exportar PDF…',
-    exportJson: 'Exportar JSON…',
+    exportJson: 'Exportar copia de seguridad…',
     archive: 'Archivar',
     restore: 'Restaurar',
     delete: 'Eliminar…',
@@ -115,8 +124,16 @@ export const es: typeof en = {
     trashed: 'Proyecto movido a la papelera',
     duplicated: (name) => `Proyecto duplicado: ${name}`,
     imported: (name) => `Proyecto importado: ${name}`,
-    exportedJson: 'Proyecto exportado como JSON',
+    replaced: (name) => `Proyecto sustituido por la copia: ${name}`,
+    exportedJson: (path) => `Copia de seguridad guardada: ${path}`,
     readOnly: 'Proyecto de una versión más nueva: se abre en solo lectura'
+  },
+  clash: {
+    title: (name) => `«${name}» ya existe`,
+    description:
+      'El archivo es una copia de un proyecto que ya tienes. Puedes sustituirlo por la copia (la versión actual pasa a la papelera de la carpeta de datos) o conservar los dos (la copia se añade con otro nombre).',
+    replace: 'Sustituir',
+    keepBoth: 'Conservar los dos'
   },
   create: {
     title: 'Nuevo proyecto',

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Search } from 'lucide-react'
+import { compareCodes } from '@domain'
 import { Input } from '../../components/ui/input'
 import { useI18n } from '../../i18n'
 import { cn } from '../../lib/cn'
@@ -37,7 +38,7 @@ export function useTaskItems(disabledReason?: (id: string) => string | undefined
         .join(' › ')
       items.push({ id: task.id, code: codes.get(task.id) ?? '', title: task.title || t.common.untitled, path, disabled: disabledReason?.(task.id) })
     }
-    return items.sort((a, b) => a.code.localeCompare(b.code, 'es', { numeric: true }))
+    return items.sort((a, b) => compareCodes(a.code, b.code))
   }, [state, codes, t, disabledReason])
 }
 
@@ -117,7 +118,7 @@ export function TaskPicker({
             {item.icon}
             <span className="w-16 shrink-0 truncate text-xs tabular-nums text-muted-foreground">{item.code}</span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-medium">{item.title}</span>
+              <span className="block font-medium wrap-anywhere">{item.title}</span>
               {item.path ? <span className="block truncate text-xs text-muted-foreground">{item.path}</span> : null}
             </span>
             {item.disabled ? <span className="shrink-0 text-xs text-muted-foreground">{item.disabled}</span> : null}

@@ -9,14 +9,18 @@ import {
   type IsoDateTime,
   type MemberId,
   type Result,
+  type TagId,
   type TaskId
 } from '../common/primitives'
-import { DEFAULT_TASK_FIELDS, MAX_TITLE_LENGTH, type Task } from '../task/Task'
+import { invalid } from '../common/validation'
+import { createdHistory, withStatus } from '../task/statusHistory'
+import { DEFAULT_TASK_FIELDS, MAX_TAGS_PER_TASK, MAX_TITLE_LENGTH, type Task } from '../task/Task'
 import { validateTaskPatch } from '../task/validateTask'
 import type { Member } from '../team/Member'
 import { memberFieldsFrom, validateMemberPatch } from '../team/validateMember'
 import type { Command } from './commands'
 import type { ProjectState } from './Project'
+import { isTagColor, MAX_PROJECT_TAGS, nextTagColor, validateTagName, type TagDef } from './tags'
 import { validateMetaPatch } from './validateProject'
 
 export interface ApplyContext {
@@ -26,14 +30,15 @@ export interface ApplyContext {
 
 export interface ApplyOutcome {
   readonly state: ProjectState
-  /** Ids created by the command (tasks or people), in order. */
+  /** Ids created by the command (tasks, people or tags), in order. */
   readonly created: readonly string[]
 }
 
 const NOT_FOUND_MESSAGES = {
   TASK_NOT_FOUND: 'The task does not exist',
   SOME_TASK_NOT_FOUND: 'One of the tasks does not exist',
-  MEMBER_NOT_FOUND: 'The person does not exist'
+  MEMBER_NOT_FOUND: 'The person does not exist',
+  UNKNOWN_TAG: 'The tag is not part of the project'
 } as const satisfies Partial<Record<DomainErrorReason, string>>
 
 const notFound = (reason: keyof typeof NOT_FOUND_MESSAGES): Result<never, DomainError> =>
@@ -53,6 +58,29 @@ function withGraph(state: ProjectState, graph: Result<TaskGraph, GraphError>, ct
   return done({ ...state, graph: graph.value }, ctx)
 }
 
+/** Tasks after giving the tag to `ids` (or taking it away). The same map when nothing changes. */
+function assignTag(
+  state: ProjectState,
+  ids: readonly TaskId[],
+  tagId: TagId,
+  assigned: boolean,
+  now: IsoDateTime
+): Result<ReadonlyMap<TaskId, Task>, DomainError> {
+  let tasks = state.tasks
+  for (const id of new Set(ids)) {
+    const task = state.tasks.get(id)
+    if (!task) return notFound('SOME_TASK_NOT_FOUND')
+    if (task.tagIds.includes(tagId) === assigned) continue
+    if (assigned && task.tagIds.length >= MAX_TAGS_PER_TASK) {
+      return invalid(`At most ${MAX_TAGS_PER_TASK} tags per task`, 'TOO_MANY_TAGS', { max: MAX_TAGS_PER_TASK })
+    }
+    if (tasks === state.tasks) tasks = new Map(state.tasks)
+    const tagIds = assigned ? [...task.tagIds, tagId] : task.tagIds.filter((t) => t !== tagId)
+    ;(tasks as Map<TaskId, Task>).set(id, { ...task, tagIds, updatedAt: now })
+  }
+  return ok(tasks)
+}
+
 /**
  * Pure reducer of the Project aggregate: validates the command and returns the new state.
  * It never mutates `state`; it shares the tasks, people and graph that do not change
@@ -66,7 +94,14 @@ export function apply(state: ProjectState, cmd: Command, ctx: ApplyContext): Res
       const id = ctx.newId()
       const graph = state.graph.addNode(id, cmd.parentId, cmd.index)
       if (!graph.ok) return fromGraph(graph.error)
-      const task: Task = { ...DEFAULT_TASK_FIELDS, ...fields.value, id, createdAt: ctx.now, updatedAt: ctx.now }
+      const values = { ...DEFAULT_TASK_FIELDS, ...fields.value }
+      const task: Task = {
+        ...values,
+        id,
+        statusHistory: createdHistory(values.status, ctx.now),
+        createdAt: ctx.now,
+        updatedAt: ctx.now
+      }
       const tasks = new Map(state.tasks)
       tasks.set(id, task)
       return done({ ...state, tasks, graph: graph.value }, ctx, [id])
@@ -78,8 +113,10 @@ export function apply(state: ProjectState, cmd: Command, ctx: ApplyContext): Res
       const patch = validateTaskPatch(cmd.patch, state)
       if (!patch.ok) return patch
       if (Object.keys(patch.value).length === 0) return ok({ state, created: [] })
+      const { status, ...fields } = patch.value
+      const updated: Task = { ...current, ...fields, updatedAt: ctx.now }
       const tasks = new Map(state.tasks)
-      tasks.set(cmd.id, { ...current, ...patch.value, updatedAt: ctx.now })
+      tasks.set(cmd.id, status === undefined ? updated : withStatus(updated, status, ctx.now))
       return done({ ...state, tasks }, ctx)
     }
 
@@ -93,11 +130,13 @@ export function apply(state: ProjectState, cmd: Command, ctx: ApplyContext): Res
         state
       )
       if (!patch.ok) return patch
+      const { status, ...fields } = patch.value
       const tasks = new Map(state.tasks)
       for (const id of new Set(cmd.ids)) {
         const current = tasks.get(id)
         if (!current) return notFound('SOME_TASK_NOT_FOUND')
-        tasks.set(id, { ...current, ...patch.value, updatedAt: ctx.now })
+        const updated: Task = { ...current, ...fields, updatedAt: ctx.now }
+        tasks.set(id, status === undefined ? updated : withStatus(updated, status, ctx.now))
       }
       return done({ ...state, tasks }, ctx)
     }
@@ -127,7 +166,15 @@ export function apply(state: ProjectState, cmd: Command, ctx: ApplyContext): Res
       for (const [oldId, newId] of result.value.mapping) {
         const source = state.tasks.get(oldId)!
         const title = oldId === cmd.id && cmd.title !== undefined ? clampText(cmd.title, MAX_TITLE_LENGTH) : source.title
-        tasks.set(newId, { ...source, id: newId, title, createdAt: ctx.now, updatedAt: ctx.now })
+        // The copy is a new task: its history starts now, with the status of the original.
+        tasks.set(newId, {
+          ...source,
+          id: newId,
+          title,
+          statusHistory: createdHistory(source.status, ctx.now),
+          createdAt: ctx.now,
+          updatedAt: ctx.now
+        })
         created.push(newId)
       }
       return done({ ...state, tasks, graph: result.value.graph }, ctx, created)
@@ -191,6 +238,56 @@ export function apply(state: ProjectState, cmd: Command, ctx: ApplyContext): Res
       const patch = validateMetaPatch(cmd.patch)
       if (!patch.ok) return patch
       return done({ ...state, meta: { ...state.meta, ...patch.value } }, ctx)
+    }
+
+    case 'tag.create': {
+      const existing = state.meta.tags
+      if (existing.length >= MAX_PROJECT_TAGS) {
+        return invalid(`At most ${MAX_PROJECT_TAGS} tags per project`, 'TOO_MANY_PROJECT_TAGS', { max: MAX_PROJECT_TAGS })
+      }
+      const name = validateTagName(cmd.name, existing)
+      if (!name.ok) return name
+      if (cmd.color !== undefined && !isTagColor(cmd.color)) return invalid('Invalid color', 'INVALID_COLOR')
+      const tag: TagDef = { id: ctx.newId(), name: name.value, color: cmd.color ?? nextTagColor(existing) }
+      const withTag: ProjectState = { ...state, meta: { ...state.meta, tags: [...existing, tag] } }
+      const tasks = assignTag(withTag, cmd.assignTo ?? [], tag.id, true, ctx.now)
+      if (!tasks.ok) return tasks
+      return done({ ...withTag, tasks: tasks.value }, ctx, [tag.id])
+    }
+
+    case 'tag.update': {
+      const index = state.meta.tags.findIndex((t) => t.id === cmd.id)
+      if (index < 0) return notFound('UNKNOWN_TAG')
+      const current = state.meta.tags[index]!
+      let next: TagDef = current
+      if (cmd.patch.name !== undefined) {
+        const name = validateTagName(cmd.patch.name, state.meta.tags, cmd.id)
+        if (!name.ok) return name
+        next = { ...next, name: name.value }
+      }
+      if (cmd.patch.color !== undefined) {
+        if (!isTagColor(cmd.patch.color)) return invalid('Invalid color', 'INVALID_COLOR')
+        next = { ...next, color: cmd.patch.color }
+      }
+      if (next.name === current.name && next.color === current.color) return ok({ state, created: [] })
+      const tags = state.meta.tags.map((t, i) => (i === index ? next : t))
+      return done({ ...state, meta: { ...state.meta, tags } }, ctx)
+    }
+
+    case 'tag.delete': {
+      if (!state.meta.tags.some((t) => t.id === cmd.id)) return notFound('UNKNOWN_TAG')
+      const tasks = assignTag(state, [...state.tasks.keys()], cmd.id, false, ctx.now)
+      if (!tasks.ok) return tasks
+      const tags = state.meta.tags.filter((t) => t.id !== cmd.id)
+      return done({ ...state, meta: { ...state.meta, tags }, tasks: tasks.value }, ctx)
+    }
+
+    case 'tag.assign': {
+      if (!state.meta.tags.some((t) => t.id === cmd.tagId)) return notFound('UNKNOWN_TAG')
+      const tasks = assignTag(state, cmd.ids, cmd.tagId, cmd.assigned, ctx.now)
+      if (!tasks.ok) return tasks
+      if (tasks.value === state.tasks) return ok({ state, created: [] })
+      return done({ ...state, tasks: tasks.value }, ctx)
     }
   }
 }

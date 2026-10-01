@@ -1,5 +1,6 @@
-import { domainError, err, ok, type DomainError, type ProjectId, type Result } from '../common/primitives'
+import { domainError, err, ok, type DomainError, type IsoDateTime, type ProjectId, type Result } from '../common/primitives'
 import { TaskGraph, type StructureDTO } from '../graph/TaskGraph'
+import { createdHistory } from '../task/statusHistory'
 import type { Task } from '../task/Task'
 import type { Member } from '../team/Member'
 import type { ProjectMeta, ProjectState } from './Project'
@@ -36,17 +37,34 @@ export function fromProjectData(data: ProjectData): Result<ProjectState, DomainE
   }
   const graph = TaskGraph.fromDTO(data.structure, tasks.keys())
   if (!graph.ok) return err(domainError('CORRUPT', graph.error.message, graph.error.reason, graph.error.params))
+  // References to people or tags that no longer exist are dropped instead of rejecting the project.
+  const tagIds = new Set(data.meta.tags.map((tag) => tag.id))
   for (const t of tasks.values()) {
-    if (t.assigneeId !== null && !members.has(t.assigneeId)) {
-      tasks.set(t.id, { ...t, assigneeId: null })
-    }
+    const assigneeOk = t.assigneeId === null || members.has(t.assigneeId)
+    const tagsOk = t.tagIds.every((id) => tagIds.has(id))
+    if (assigneeOk && tagsOk) continue
+    tasks.set(t.id, {
+      ...t,
+      assigneeId: assigneeOk ? t.assigneeId : null,
+      tagIds: tagsOk ? t.tagIds : t.tagIds.filter((id) => tagIds.has(id))
+    })
   }
   return ok({ meta: data.meta, members, tasks, graph: graph.value })
 }
 
 /**
+ * Every task starts a new status history now, with its current status. A duplicated project is a
+ * new project: the status changes of the original are not its own, so its sprints do not show them.
+ */
+export function restartStatusHistories(state: ProjectState, now: IsoDateTime): ProjectState {
+  const tasks = new Map<string, Task>()
+  for (const [id, task] of state.tasks) tasks.set(id, { ...task, statusHistory: createdHistory(task.status, now) })
+  return { ...state, tasks }
+}
+
+/**
  * Deep copy with new ids (project, people and tasks). Used to duplicate
- * projects or to import one whose id already exists.
+ * projects or to import one whose id already exists. Tag ids belong to the project and are kept.
  */
 export function copyWithNewIds(state: ProjectState, projectId: ProjectId, makeId: () => string): ProjectState {
   const memberMap = new Map<string, string>()

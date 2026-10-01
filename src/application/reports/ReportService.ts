@@ -22,7 +22,8 @@ export class ReportService {
     const state = await this.deps.sessions.stateOf(projectId)
     if (!state.ok) return state
     const settings = await this.deps.settings.update({ reportOptions: { [projectId]: options } })
-    return ok(buildReportModel(state.value, options, settings.issuer, this.deps.clock.now()))
+    const { clock } = this.deps
+    return ok(buildReportModel(state.value, options, settings.issuer, { now: clock.now(), localDate: (at) => clock.localDate(at) }))
   }
 
   render(model: ReportModel): Promise<Uint8Array> {

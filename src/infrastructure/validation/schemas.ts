@@ -1,5 +1,22 @@
 import { z } from 'zod'
-import { LANGUAGES, MAX_ESTIMATE_MINUTES, MAX_POINT_OVERRIDES, PRIORITIES, TASK_STATUSES } from '@domain'
+import {
+  DEFAULT_SPRINT_SETTINGS,
+  isTagColor,
+  LANGUAGES,
+  MAX_ESTIMATE_MINUTES,
+  MAX_POINT_OVERRIDES,
+  MAX_SPRINT_LENGTH,
+  MAX_STATUS_HISTORY,
+  MAX_TAG_NAME_LENGTH,
+  MAX_TAGS_PER_TASK,
+  PRIORITIES,
+  SPRINT_UNITS,
+  TASK_STATUSES,
+  tagKey,
+  type StatusChange,
+  type TagDef,
+  type TaskStatus
+} from '@domain'
 import { LANGUAGE_PREFERENCES } from '@application'
 
 /**
@@ -8,6 +25,9 @@ import { LANGUAGE_PREFERENCES } from '@application'
  */
 export const IdSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'Invalid id')
 export const IsoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date')
+/** Tag ids are UUIDs; tags converted from free text by the 2 → 3 migration have short ids ("tag-1"). */
+const TAG_ID = /^[A-Za-z0-9-]{1,64}$/
+export const TagIdSchema = z.string().regex(TAG_ID, 'Invalid id')
 const Cents = z.number().int().min(0).max(1_000_000_000)
 const Bps = z.number().int().min(0).max(100_000)
 const Color = z.string().regex(/^#[0-9a-f]{6}$/i)
@@ -27,6 +47,62 @@ export const PointScaleSchema = z
     if (new Set(points).size !== points.length) ctx.addIssue({ code: 'custom', message: 'Repeated story points' })
   })
 
+// The fields added in format 3 are read leniently: a damaged history or tag list is cleaned up
+// instead of sending the whole project to quarantine.
+
+const isStatus = (value: unknown): value is TaskStatus => (TASK_STATUSES as readonly unknown[]).includes(value)
+
+/** Keeps the valid entries (latest MAX_STATUS_HISTORY), with their timestamps in one ISO format. */
+function cleanHistory(entries: readonly unknown[]): StatusChange[] {
+  const out: StatusChange[] = []
+  for (const entry of entries) {
+    if (typeof entry !== 'object' || entry === null) continue
+    const { at, from, to } = entry as Record<string, unknown>
+    const time = typeof at === 'string' ? Date.parse(at) : Number.NaN
+    if (Number.isNaN(time) || !isStatus(to) || (from !== null && !isStatus(from))) continue
+    out.push({ at: new Date(time).toISOString(), from, to })
+  }
+  return out.slice(-MAX_STATUS_HISTORY)
+}
+
+/**
+ * Safety limit when reading. It is far above MAX_PROJECT_TAGS (a limit to create tags) so the tags of
+ * an older file with many free-text tags are not lost when it is migrated.
+ */
+const MAX_STORED_TAGS = 10_000
+
+/** Keeps the valid tags of a project, without repeated ids or names. */
+function cleanTags(entries: readonly unknown[]): TagDef[] {
+  const out: TagDef[] = []
+  const ids = new Set<string>()
+  const keys = new Set<string>()
+  for (const entry of entries) {
+    if (out.length >= MAX_STORED_TAGS) break
+    if (typeof entry !== 'object' || entry === null) continue
+    const { id, name, color } = entry as Record<string, unknown>
+    if (typeof id !== 'string' || !TAG_ID.test(id) || typeof name !== 'string' || !isTagColor(color)) continue
+    const trimmed = name.trim()
+    if (!trimmed || trimmed.length > MAX_TAG_NAME_LENGTH || ids.has(id) || keys.has(tagKey(trimmed))) continue
+    ids.add(id)
+    keys.add(tagKey(trimmed))
+    out.push({ id, name: trimmed, color })
+  }
+  return out
+}
+
+/** Tag ids of a task, without repetitions; ids of tags that do not exist are dropped by the domain. */
+function cleanTagIds(entries: readonly unknown[]): string[] {
+  const out: string[] = []
+  for (const id of entries) {
+    if (typeof id === 'string' && TAG_ID.test(id) && !out.includes(id)) out.push(id)
+  }
+  return out.slice(0, MAX_TAGS_PER_TASK)
+}
+
+const SprintSettingsSchema = z
+  .object({ length: z.number().int().min(1), unit: z.enum(SPRINT_UNITS) })
+  .refine((s) => s.length <= MAX_SPRINT_LENGTH[s.unit], 'Sprint too long')
+
 export const TaskSchema = z.object({
   id: IdSchema,
   title: z.string().max(300),
@@ -37,7 +113,8 @@ export const TaskSchema = z.object({
   estimateMinutes: z.number().int().min(0).max(100_000 * 60).nullable(),
   assigneeId: IdSchema.nullable(),
   rateCents: Cents.nullable(),
-  tags: z.array(z.string().max(40)).max(20),
+  tagIds: z.array(z.unknown()).catch([]).transform(cleanTagIds),
+  statusHistory: z.array(z.unknown()).catch([]).transform(cleanHistory),
   createdAt: z.string(),
   updatedAt: z.string()
 })
@@ -74,6 +151,8 @@ export const MetaSchema = z.object({
   taxBps: Bps,
   taxLabel: z.string().max(20),
   pointScale: PointScaleSchema.nullable(),
+  sprints: SprintSettingsSchema.nullable().catch(DEFAULT_SPRINT_SETTINGS),
+  tags: z.array(z.unknown()).catch([]).transform(cleanTags),
   quote: QuoteSchema,
   archived: z.boolean(),
   createdAt: z.string(),
@@ -107,7 +186,9 @@ export const ReportOptionsSchema = z.object({
     rate: z.boolean(),
     storyPoints: z.boolean(),
     assignee: z.boolean(),
-    status: z.boolean()
+    status: z.boolean(),
+    // Options saved before tags could be printed: without them.
+    tags: z.boolean().default(false)
   }),
   maxDepth: z.number().int().min(1).max(50).nullable(),
   subtotalDepth: z.number().int().min(0).max(50),

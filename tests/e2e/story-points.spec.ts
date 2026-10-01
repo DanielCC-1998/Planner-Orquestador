@@ -75,7 +75,7 @@ test('hours from story points: a scale per project, exceptions and typed hours t
   await expect(cell(row(page, 'Login'), 'estimate')).toHaveText('6 h')
   await expect.poll(() => plainText(footer)).toContain('18 h')
 
-  // The scale is saved with the project (format version 2) and kept after restarting.
+  // The scale is saved with the project and kept after restarting.
   await app.close()
   const again = await launchApp(dataDir)
   try {
@@ -88,6 +88,6 @@ test('hours from story points: a scale per project, exceptions and typed hours t
   const projects = join(dataDir, 'projects')
   const file = readdirSync(projects).find((f) => f.endsWith('.json'))!
   const saved = JSON.parse(readFileSync(join(projects, file), 'utf8'))
-  expect(saved.schemaVersion).toBe(2)
+  expect(saved.schemaVersion).toBe(3)
   expect(saved.meta.pointScale).toEqual({ minutesPerPoint: 120, overrides: [{ points: 5, minutes: 480 }] })
 })

@@ -15,7 +15,7 @@ import type { InfraErrorReason } from '@shared/ipc/errors'
 import { MemberSchema, MetaSchema, StructureSchema, TaskSchema } from '../../validation/schemas'
 
 export const PROJECT_FORMAT = 'planner.project'
-export const CURRENT_SCHEMA_VERSION = 2
+export const CURRENT_SCHEMA_VERSION = 3
 
 const ProjectDocSchema = z.object({
   format: z.literal(PROJECT_FORMAT),
@@ -28,6 +28,46 @@ const ProjectDocSchema = z.object({
 
 type RawDoc = Record<string, unknown> & { schemaVersion: number }
 
+/** Colors given in turn to the tags converted from free text. Frozen, like every migration. */
+const MIGRATED_TAG_COLORS = ['red', 'orange', 'amber', 'lime', 'green', 'teal', 'cyan', 'blue', 'indigo', 'violet', 'fuchsia', 'pink']
+
+/**
+ * 2 → 3: tasks get an empty status history (their past is unknown) and projects 2-week sprints.
+ * The free-text tags of the tasks become tags of the project: one per name, ignoring case (the
+ * first spelling wins), with fixed ids "tag-1", "tag-2"… so decoding the same file twice gives
+ * the same project. It never throws: a malformed document is left for the schema to reject.
+ */
+function migrateTo3(doc: RawDoc): RawDoc {
+  const meta = typeof doc['meta'] === 'object' && doc['meta'] !== null ? (doc['meta'] as Record<string, unknown>) : {}
+  const tags: { id: string; name: string; color: string }[] = []
+  const idByKey = new Map<string, string>()
+  const tagIdsOf = (names: unknown): string[] => {
+    const ids: string[] = []
+    for (const value of Array.isArray(names) ? names : []) {
+      if (typeof value !== 'string') continue
+      const name = value.trim().slice(0, 40)
+      if (!name) continue
+      const key = name.toLocaleLowerCase('es')
+      let id = idByKey.get(key)
+      if (id === undefined) {
+        id = `tag-${tags.length + 1}`
+        idByKey.set(key, id)
+        tags.push({ id, name, color: MIGRATED_TAG_COLORS[tags.length % MIGRATED_TAG_COLORS.length]! })
+      }
+      if (!ids.includes(id)) ids.push(id)
+    }
+    return ids
+  }
+  const tasks = Array.isArray(doc['tasks'])
+    ? doc['tasks'].map((raw: unknown) => {
+        if (typeof raw !== 'object' || raw === null) return raw
+        const { tags: names, ...task } = raw as Record<string, unknown>
+        return { ...task, tagIds: tagIdsOf(names), statusHistory: [] }
+      })
+    : doc['tasks']
+  return { ...doc, schemaVersion: 3, meta: { ...meta, sprints: { length: 2, unit: 'week' }, tags }, tasks }
+}
+
 /**
  * Format migrations: MIGRATIONS[n] turns a document of version n into version n+1.
  * When the format changes: bump CURRENT_SCHEMA_VERSION, add the migration and a test fixture.
@@ -35,7 +75,8 @@ type RawDoc = Record<string, unknown> & { schemaVersion: number }
 const MIGRATIONS: Record<number, (doc: RawDoc) => RawDoc> = {
   // 1 → 2: projects get a story points → hours scale, off by default. A literal on purpose:
   // a migration must keep producing the same document even if the domain defaults change.
-  1: (doc) => ({ ...doc, schemaVersion: 2, meta: { ...(doc['meta'] as object), pointScale: null } })
+  1: (doc) => ({ ...doc, schemaVersion: 2, meta: { ...(doc['meta'] as object), pointScale: null } }),
+  2: migrateTo3
 }
 
 /**

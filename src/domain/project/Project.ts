@@ -1,8 +1,10 @@
 import type { IsoDate, IsoDateTime, MemberId, ProjectId, TaskId } from '../common/primitives'
 import type { PointScale } from '../estimation/pointScale'
 import type { TaskGraph } from '../graph/TaskGraph'
+import type { SprintSettings } from '../progress/sprints'
 import type { Task } from '../task/Task'
 import type { Member } from '../team/Member'
+import type { TagDef } from './tags'
 
 /** Maximum length of a project name. */
 export const MAX_PROJECT_NAME_LENGTH = 200
@@ -34,13 +36,17 @@ export interface ProjectMeta {
   readonly taxLabel: string
   /** How story points turn into hours; null = they do not (hours are only typed by hand). */
   readonly pointScale: PointScale | null
+  /** Length of the sprints, counted from the start date (or the creation day); null = no sprints. */
+  readonly sprints: SprintSettings | null
+  /** Tags of the project, in creation order. Tasks refer to them by id; the tag commands change them. */
+  readonly tags: readonly TagDef[]
   readonly quote: QuoteInfo
   readonly archived: boolean
   readonly createdAt: IsoDateTime
   readonly updatedAt: IsoDateTime
 }
 
-export type MetaPatch = Partial<Omit<ProjectMeta, 'id' | 'createdAt' | 'updatedAt'>>
+export type MetaPatch = Partial<Omit<ProjectMeta, 'id' | 'createdAt' | 'updatedAt' | 'tags'>>
 
 /**
  * The Project aggregate: details, team, tasks and their structure (graph).

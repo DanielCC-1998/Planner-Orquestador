@@ -5,13 +5,14 @@ import {
   ok,
   copyWithNewIds,
   MAX_PROJECT_NAME_LENGTH,
+  restartStatusHistories,
   type Member,
   type NewProjectInput,
   type ProjectId,
   type ProjectState,
   type Result
 } from '@domain'
-import { fail, type AppError } from '../errors'
+import { fail, readOnlyNewer, type AppError } from '../errors'
 import type { Clock, IdGenerator, ProjectRepository, ProjectSerializer } from '../ports'
 import type { ProjectSessions } from './ProjectSessions'
 
@@ -41,6 +42,16 @@ export interface CatalogDeps {
   readonly clock: Clock
   readonly ids: IdGenerator
 }
+
+/** Result of reading a project file to import. */
+export type ImportOutcome =
+  | { readonly kind: 'imported'; readonly card: ProjectCard }
+  /** A project with the same id already exists: `resolveImport` with the ticket decides what to do. */
+  | { readonly kind: 'clash'; readonly ticket: string; readonly existingName: string }
+
+/** 'replace': the existing project goes to the trash; 'copy': both are kept; 'cancel': nothing is imported. */
+export const IMPORT_RESOLUTIONS = ['replace', 'copy', 'cancel'] as const
+export type ImportResolution = (typeof IMPORT_RESOLUTIONS)[number]
 
 export function cardOf(state: ProjectState): ProjectCard {
   const e = estimate(state)
@@ -74,6 +85,8 @@ export function safeFileName(name: string, fallback: string): string {
 /** Use cases over the set of projects (the cards screen). */
 export class ProjectCatalog {
   private readonly cache = new Map<ProjectId, ProjectCard>()
+  /** Project read by `importJson` whose id already existed, waiting for `resolveImport`. */
+  private pendingImport: { readonly ticket: string; readonly state: ProjectState } | null = null
 
   constructor(private readonly deps: CatalogDeps) {}
 
@@ -111,12 +124,17 @@ export class ProjectCatalog {
     return ok(cardOf(created.value))
   }
 
-  /** Copies a project with new ids. `copyName` builds the localized name of the copy (e.g. "X (copy)"). */
+  /**
+   * Copies a project with new ids. `copyName` builds the localized name of the copy (e.g. "X (copy)").
+   * The copy is a new project: its status history starts now. A project from a newer version cannot be
+   * copied: its newer data would be lost.
+   */
   async duplicate(id: ProjectId, copyName: (name: string) => string): Promise<Result<ProjectCard, AppError>> {
-    const source = await this.deps.sessions.stateOf(id)
+    const source = await this.deps.sessions.loadedOf(id)
     if (!source.ok) return source
+    if (source.value.readOnly) return readOnlyNewer()
     const now = this.deps.clock.now()
-    const copy = copyWithNewIds(source.value, this.deps.ids.next(), () => this.deps.ids.next())
+    const copy = restartStatusHistories(copyWithNewIds(source.value.state, this.deps.ids.next(), () => this.deps.ids.next()), now)
     const state: ProjectState = {
       ...copy,
       meta: {
@@ -140,25 +158,69 @@ export class ProjectCatalog {
     return ok(undefined)
   }
 
-  /** `fallbackName` is the localized file name used when the project name has no usable characters. */
+  /**
+   * Backup of a project, in the same format as on disk. `fallbackName` is the localized file name used
+   * when the project name has no usable characters. A project from a newer version is not exported:
+   * this version would write it without the data it does not know.
+   */
   async exportJson(id: ProjectId, fallbackName: string): Promise<Result<{ fileName: string; content: string }, AppError>> {
-    const state = await this.deps.sessions.stateOf(id)
-    if (!state.ok) return state
-    const fileName = `${safeFileName(state.value.meta.name, fallbackName)}.planner.json`
-    return ok({ fileName, content: this.deps.serializer.serialize(state.value) })
+    const loaded = await this.deps.sessions.loadedOf(id)
+    if (!loaded.ok) return loaded
+    if (loaded.value.readOnly) return readOnlyNewer()
+    const { state } = loaded.value
+    const fileName = `${safeFileName(state.meta.name, fallbackName)}.planner.json`
+    return ok({ fileName, content: this.deps.serializer.serialize(state) })
   }
 
-  /** Imports a project; if its id already exists it gets new ids and the name from `renameOnClash`. */
-  async importJson(content: string, renameOnClash: (name: string) => string): Promise<Result<ProjectCard, AppError>> {
+  /**
+   * Imports a backup. When a project with the same id already exists, nothing is imported yet: the
+   * result carries a ticket for `resolveImport`. Only the latest pending import is kept.
+   */
+  async importJson(content: string): Promise<Result<ImportOutcome, AppError>> {
+    this.pendingImport = null
     const parsed = this.deps.serializer.deserialize(content)
     if (!parsed.ok) return parsed
+    const state = parsed.value
     const ids = await this.deps.repo.listIds()
-    let state = parsed.value
-    if (ids.includes(state.meta.id)) {
+    if (!ids.includes(state.meta.id)) {
+      await this.deps.sessions.adopt(state)
+      return ok({ kind: 'imported', card: cardOf(state) })
+    }
+    const existing = await this.deps.sessions.stateOf(state.meta.id)
+    const ticket = this.deps.ids.next()
+    this.pendingImport = { ticket, state }
+    return ok({ kind: 'clash', ticket, existingName: existing.ok ? existing.value.meta.name : state.meta.name })
+  }
+
+  /**
+   * Finishes an import whose project already existed. 'replace' moves the current version to the trash
+   * (it can be recovered from there) and keeps the imported one; 'copy' keeps both, the imported one
+   * with new ids and the name from `renameOnClash`; 'cancel' imports nothing.
+   */
+  async resolveImport(
+    ticket: string,
+    mode: ImportResolution,
+    renameOnClash: (name: string) => string
+  ): Promise<Result<ProjectCard | null, AppError>> {
+    const pending = this.pendingImport
+    if (!pending || pending.ticket !== ticket) {
+      return fail('NOT_FOUND', 'The import is no longer pending; import the file again', 'IMPORT_EXPIRED')
+    }
+    if (mode === 'cancel') {
+      this.pendingImport = null
+      return ok(null)
+    }
+    let state = pending.state
+    if (mode === 'replace') {
+      const trashed = await this.trash(state.meta.id)
+      // If it was deleted in the meantime there is nothing in the way; any other failure keeps the import pending.
+      if (!trashed.ok && trashed.error.reason !== 'PROJECT_NOT_FOUND') return trashed
+    } else {
       state = copyWithNewIds(state, this.deps.ids.next(), () => this.deps.ids.next())
       state = { ...state, meta: { ...state.meta, name: clampText(renameOnClash(state.meta.name), MAX_PROJECT_NAME_LENGTH) } }
     }
     await this.deps.sessions.adopt(state)
+    this.pendingImport = null
     return ok(cardOf(state))
   }
 

@@ -2,9 +2,9 @@ import { MAX_ESTIMATE_MINUTES } from '../common/duration'
 import { ok, type DomainError, type Result } from '../common/primitives'
 import { has, invalid, isNonNegInt, MAX_RATE_CENTS } from '../common/validation'
 import type { ProjectState } from '../project/Project'
-import { MAX_TITLE_LENGTH, PRIORITIES, TASK_STATUSES, type TaskPatch } from './Task'
+import { MAX_TAGS_PER_TASK, MAX_TITLE_LENGTH, PRIORITIES, TASK_STATUSES, type TaskPatch } from './Task'
 
-/** Validates and normalizes the fields of a task. Checks that the assignee exists. */
+/** Validates and normalizes the fields of a task. Checks that the assignee and the tags exist. */
 export function validateTaskPatch(patch: TaskPatch, state: ProjectState): Result<TaskPatch, DomainError> {
   const out: { -readonly [K in keyof TaskPatch]: TaskPatch[K] } = {}
   if (has(patch, 'title')) {
@@ -53,21 +53,19 @@ export function validateTaskPatch(patch: TaskPatch, state: ProjectState): Result
     if (r !== null && !isNonNegInt(r, MAX_RATE_CENTS)) return invalid('Invalid rate', 'INVALID_RATE')
     out.rateCents = r ?? null
   }
-  if (has(patch, 'tags')) {
-    if (!Array.isArray(patch.tags)) return invalid('Invalid tags', 'INVALID_TAGS')
-    const seen = new Set<string>()
-    const tags: string[] = []
-    for (const raw of patch.tags) {
-      const t = String(raw).trim()
-      if (!t) continue
-      if (t.length > 40) return invalid('Each tag can have at most 40 characters', 'TAG_TOO_LONG')
-      const key = t.toLocaleLowerCase('es')
-      if (seen.has(key)) continue
-      seen.add(key)
-      tags.push(t)
+  if (has(patch, 'tagIds')) {
+    if (!Array.isArray(patch.tagIds)) return invalid('Invalid tags', 'INVALID_TAGS')
+    const known = new Set(state.meta.tags.map((t) => t.id))
+    const tagIds: string[] = []
+    for (const raw of patch.tagIds) {
+      const id = String(raw)
+      if (!known.has(id)) return invalid('The tag is not part of the project', 'UNKNOWN_TAG')
+      if (!tagIds.includes(id)) tagIds.push(id)
     }
-    if (tags.length > 20) return invalid('At most 20 tags per task', 'TOO_MANY_TAGS')
-    out.tags = tags
+    if (tagIds.length > MAX_TAGS_PER_TASK) {
+      return invalid(`At most ${MAX_TAGS_PER_TASK} tags per task`, 'TOO_MANY_TAGS', { max: MAX_TAGS_PER_TASK })
+    }
+    out.tagIds = tagIds
   }
   return ok(out)
 }

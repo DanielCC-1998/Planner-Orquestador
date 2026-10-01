@@ -29,7 +29,7 @@ export function Toaster() {
           ) : (
             <Info className="mt-0.5 size-4 shrink-0 text-primary" />
           )}
-          <div className="min-w-0 flex-1 leading-snug">{item.message}</div>
+          <div className="min-w-0 flex-1 leading-snug wrap-anywhere">{item.message}</div>
           {item.action ? (
             <button
               className="shrink-0 text-xs font-semibold text-primary hover:underline"
@@ -113,7 +113,7 @@ export function ConfirmHost() {
         </>
       }
     >
-      <div className="text-sm leading-relaxed text-muted-foreground">{request?.description}</div>
+      <div className="text-sm leading-relaxed text-muted-foreground wrap-anywhere">{request?.description}</div>
     </Dialog>
   )
 }

@@ -1,15 +1,18 @@
-import { memo, type MouseEvent } from 'react'
+import { memo, type CSSProperties, type MouseEvent } from 'react'
 import { ChevronRight, CornerDownRight, Eye, Link2, MoreHorizontal, NotebookText, Plus, Star } from 'lucide-react'
 import {
   parseDuration,
   progressOf,
   formatDurationInput,
+  tagsOfTask,
   type EstimateSource,
   type Member,
   type Metrics,
+  type TagDef,
   type Task
 } from '@domain'
 import { DescriptionPreview } from '../../components/DescriptionPreview'
+import { TagChip } from '../../components/TagChip'
 import { ContextMenu, ContextMenuTrigger, DropdownMenu, DropdownMenuTrigger } from '../../components/ui/menu'
 import { Tooltip } from '../../components/ui/misc'
 import { useI18n } from '../../i18n'
@@ -23,13 +26,18 @@ import { AssigneePicker, InlineEditor, StatusPill } from './cells'
 import type { TreeRow } from './flatten'
 import { TaskContextMenuContent, TaskDropdownMenuContent } from './TaskMenu'
 
+/** Height of a row whose title fits in one line (longer titles wrap and the row grows). */
 export const ROW_HEIGHT = 34
 /** Approximate height of a row with a visible description (measured when painted). */
 export const ROW_WITH_DESCRIPTION_HEIGHT = 74
 export const INDENT = 20
-const WBS_WIDTH = 76
 export const MAX_INDENT_LEVELS = 8
-export const TREE_GRID = 'grid grid-cols-[76px_minmax(300px,1fr)_40px_116px_56px_78px_132px_124px_92px]'
+/** Columns of the header and of every row; the widths come from CSS variables of the tree (see stores/layout). */
+export const TREE_GRID_STYLE: CSSProperties = { display: 'grid', gridTemplateColumns: 'var(--tree-cols)' }
+/** Offset from the left edge of the row to the start of the task column (the WBS column width). */
+const afterWbs = (px: number) => `calc(var(--tree-wbs) + ${px}px)`
+/** Cells other than the title keep the height of a one-line row, aligned with the first line of the title. */
+const CELL = 'flex h-[34px] items-center'
 
 const BRANCH_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6', '#f97316']
 
@@ -44,6 +52,8 @@ export interface TreeRowProps {
   branchMinutes: number | null
   member: Member | undefined
   members: readonly Member[]
+  /** Tags of the project (the same array while they do not change). */
+  tags: readonly TagDef[]
   parentCount: number
   canonicalCode: string
   currency: string
@@ -174,7 +184,8 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
   const description = task.description.trim()
   // The description is shown only on the primary appearance: references point to it.
   const showDescription = p.showDescriptions && row.canonical && description !== ''
-  const titleOffset = WBS_WIDTH + 4 + indentLevels * INDENT + (tooDeep ? 28 : 0) + 24
+  const titleOffset = afterWbs(4 + indentLevels * INDENT + (tooDeep ? 28 : 0) + 24)
+  const taskTags = tagsOfTask(p.tags, task.tagIds)
 
   return (
     <ContextMenu
@@ -201,24 +212,30 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
           <span className="absolute inset-y-0 left-0 w-[3px]" style={{ backgroundColor: branchColor, opacity: 0.55 }} />
           {/* Indent guides along the full height of the row (also next to the description). */}
           {Array.from({ length: indentLevels }, (_, level) => (
-            <span key={level} className="absolute inset-y-0 w-px bg-guide" style={{ left: WBS_WIDTH + 4 + level * INDENT + 8 }} />
+            <span key={level} className="absolute inset-y-0 w-px bg-guide" style={{ left: afterWbs(4 + level * INDENT + 8) }} />
           ))}
-          <div className={cn(TREE_GRID, 'h-[34px] items-center')}>
+          <div className="items-start" style={TREE_GRID_STYLE}>
 
           {/* WBS */}
           <Tooltip content={row.code.split('.').length > 4 ? row.code : null}>
-            <div data-col="code" className={cn('truncate pl-3 text-xs tabular-nums text-muted-foreground', isRef && 'italic')}>{shortCode(row.code)}</div>
+            <div data-col="code" className={cn(CELL, 'min-w-0 pl-3 text-xs tabular-nums text-muted-foreground', isRef && 'italic')}>
+              <span className="truncate">{shortCode(row.code)}</span>
+            </div>
           </Tooltip>
 
-          {/* Task */}
-          <div data-col="title" className="relative flex h-full min-w-0 items-center gap-1 pr-1" style={{ paddingLeft: 4 + indentLevels * INDENT }}>
+          {/* Task: a long title wraps and makes the row taller (the tree measures every row). */}
+          <div
+            data-col="title"
+            className="relative flex min-h-[34px] min-w-0 items-start gap-1 py-[7px] pr-1 leading-5"
+            style={{ paddingLeft: 4 + indentLevels * INDENT }}
+          >
             {tooDeep ? (
               <Tooltip content={t.tree.row.deepLevel(absoluteLevel)}>
                 <button
                   type="button"
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={() => row.parentId && useUi.getState().focus(row.parentId)}
-                  className="z-[1] shrink-0 rounded bg-accent px-1 text-[10px] font-semibold text-accent-foreground hover:bg-primary hover:text-primary-foreground"
+                  className="z-[1] mt-0.5 shrink-0 rounded bg-accent px-1 text-[10px] font-semibold leading-4 text-accent-foreground hover:bg-primary hover:text-primary-foreground"
                 >
                   L{absoluteLevel}
                 </button>
@@ -240,10 +257,11 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
             ) : (
               <span className="size-5 shrink-0" />
             )}
-            {isRef ? <CornerDownRight className="size-3.5 shrink-0 text-shared" /> : null}
+            {isRef ? <CornerDownRight className="mt-[3px] size-3.5 shrink-0 text-shared" /> : null}
 
             {p.editing?.field === 'title' ? (
               <InlineEditor
+                multiline
                 initial={task.title}
                 placeholder={t.tree.row.titlePlaceholder}
                 onCommit={commitTitle}
@@ -257,19 +275,23 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
                   edit('title')
                 }}
                 className={cn(
-                  'min-w-0 truncate',
+                  'min-w-0 wrap-anywhere',
                   row.childCount > 0 && !isRef && 'font-medium',
                   isRef && 'italic text-muted-foreground',
                   !task.title && 'text-muted-foreground/70'
                 )}
               >
                 {task.title || t.common.untitled}
+                {/* Tags flow after the title and wrap with it. */}
+                {taskTags.map((tag) => (
+                  <TagChip key={tag.id} name={tag.name} color={tag.color} size="xs" className="ml-1.5 align-[1px] not-italic" />
+                ))}
               </span>
             )}
 
             {description && !showDescription ? (
               <Tooltip content={<span className="line-clamp-6 whitespace-pre-line">{description.slice(0, 300)}{description.length > 300 ? '…' : ''}</span>}>
-                <span className="inline-flex shrink-0 text-muted-foreground/70" aria-label={t.tree.row.hasDescription}>
+                <span className="inline-flex h-5 shrink-0 items-center text-muted-foreground/70" aria-label={t.tree.row.hasDescription}>
                   <NotebookText className="size-3.5" />
                 </span>
               </Tooltip>
@@ -281,7 +303,7 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
                   isRef ? t.tree.row.sharedReference(p.parentCount, p.canonicalCode) : t.tree.row.sharedPrimary(p.parentCount)
                 }
               >
-                <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-shared-soft px-1.5 text-[10px] font-semibold text-shared">
+                <span className="mt-0.5 inline-flex shrink-0 items-center gap-0.5 rounded-full bg-shared-soft px-1.5 text-[10px] font-semibold leading-4 text-shared">
                   {!isRef ? <Star className="size-2.5 fill-current" /> : null}
                   <Link2 className="size-3" />
                   {p.parentCount}
@@ -291,11 +313,11 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
             ) : null}
 
             {row.childCount > 0 && !row.expanded && p.editing?.field !== 'title' ? (
-              <span className="shrink-0 text-[11px] text-muted-foreground">{t.tree.row.subtasks(row.childCount)}</span>
+              <span className="shrink-0 whitespace-nowrap text-[11px] text-muted-foreground">{t.tree.row.subtasks(row.childCount)}</span>
             ) : null}
 
             {!readOnly && p.editing?.field !== 'title' ? (
-              <div className="z-[1] ml-auto flex shrink-0 items-center opacity-0 group-hover:opacity-100 data-[on=true]:opacity-100" data-on={p.selected}>
+              <div className="z-[1] -my-0.5 ml-auto flex shrink-0 items-center opacity-0 group-hover:opacity-100 data-[on=true]:opacity-100" data-on={p.selected}>
                 <Tooltip content={`${t.tree.menu.addSubtask} (${t.common.keys.ctrl}+${t.common.keys.enter})`}>
                   <button
                     type="button"
@@ -325,7 +347,7 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
           </div>
 
           {/* Assignee (on parent tasks without an assignee, the slot only shows on hover) */}
-          <div data-col="assignee" className={cn('flex justify-center', row.childCount > 0 && !p.member && !p.selected && 'opacity-0 group-hover:opacity-100')}>
+          <div data-col="assignee" className={cn(CELL, 'justify-center', row.childCount > 0 && !p.member && !p.selected && 'opacity-0 group-hover:opacity-100')}>
             <AssigneePicker
               member={p.member}
               members={p.members}
@@ -336,7 +358,7 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
           </div>
 
           {/* Status */}
-          <div data-col="status" className="px-1">
+          <div data-col="status" className={cn(CELL, 'min-w-0 px-1')}>
             <StatusPill
               status={task.status}
               disabled={readOnly || isRef}
@@ -348,7 +370,7 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
           {/* SP (contribution) */}
           <div
             data-col="sp"
-            className={cn('px-2 text-right tabular-nums', valueTone)}
+            className={cn(CELL, 'justify-end px-2 tabular-nums', valueTone)}
             onDoubleClick={(e) => {
               e.stopPropagation()
               edit('sp')
@@ -372,7 +394,7 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
           <div
             data-col="estimate"
             data-source={p.estimateSource ?? 'none'}
-            className={cn('px-2 text-right tabular-nums', valueTone)}
+            className={cn(CELL, 'justify-end px-2 tabular-nums', valueTone)}
             onDoubleClick={(e) => {
               e.stopPropagation()
               edit('estimate')
@@ -398,7 +420,7 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
           </div>
 
           {/* Σ hours (contribution) */}
-          <div data-col="sum-hours" className={cn('flex items-center justify-end gap-1.5 px-2 tabular-nums', valueTone)}>
+          <div data-col="sum-hours" className={cn(CELL, 'justify-end gap-1.5 px-2 tabular-nums', valueTone)}>
             {extraShared > 0 && !isRef ? (
               <Tooltip content={t.tree.row.branchNeeds(f.hours(p.branchMinutes!), f.hours(extraShared))}>
                 <span className="inline-flex items-center gap-0.5 text-[11px] font-medium text-shared">
@@ -411,12 +433,12 @@ export const TreeRowView = memo(function TreeRowView(p: TreeRowProps) {
           </div>
 
           {/* Σ cost */}
-          <div data-col="sum-cost" className={cn('px-2 text-right tabular-nums', valueTone, row.childCount > 0 && !isRef && 'font-semibold')}>
+          <div data-col="sum-cost" className={cn(CELL, 'justify-end px-2 tabular-nums', valueTone, row.childCount > 0 && !isRef && 'font-semibold')}>
             {attr.minutes > 0 || attr.costCents > 0 ? paren(f.money(attr.costCents, p.currency), isRef) : <span className="text-muted-foreground/50">—</span>}
           </div>
 
           {/* Progress */}
-          <div data-col="progress" className="flex items-center gap-1.5 pl-1 pr-3">
+          <div data-col="progress" className={cn(CELL, 'gap-1.5 pl-1 pr-3')}>
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
               <div className={cn('h-full rounded-full bg-status-done', isRef && 'opacity-50')} style={{ width: `${progress * 100}%` }} />
             </div>

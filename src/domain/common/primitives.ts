@@ -5,6 +5,8 @@
 export type ProjectId = string
 export type TaskId = string
 export type MemberId = string
+/** Id of a tag of the project (UUIDs; tags converted from older files keep short ids such as "tag-1"). */
+export type TagId = string
 
 /** Calendar date 'YYYY-MM-DD'. */
 export type IsoDate = string
@@ -36,6 +38,9 @@ export const DOMAIN_ERROR_REASONS = [
   'INVALID_TAGS',
   'TAG_TOO_LONG',
   'TOO_MANY_TAGS',
+  'TAG_EXISTS',
+  'UNKNOWN_TAG',
+  'TOO_MANY_PROJECT_TAGS',
   'NAME_REQUIRED',
   'NAME_TOO_LONG',
   'ROLE_TOO_LONG',
@@ -67,6 +72,7 @@ export const DOMAIN_ERROR_REASONS = [
   'DURATION_NEGATIVE',
   'DURATION_TOO_LARGE',
   'INVALID_POINT_SCALE',
+  'INVALID_SPRINTS',
   'CYCLE_MOVE',
   'CYCLE_LINK',
   'UNKNOWN_TASK',

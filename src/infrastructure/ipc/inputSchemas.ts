@@ -1,6 +1,17 @@
 import { z } from 'zod'
-import { PRIORITIES, TASK_STATUSES, type Command, type MemberPatch, type MetaPatch, type TaskPatch } from '@domain'
-import type { SettingsPatch } from '@application'
+import {
+  MAX_SPRINT_LENGTH,
+  MAX_TAGS_PER_TASK,
+  PRIORITIES,
+  SPRINT_UNITS,
+  TAG_COLORS,
+  TASK_STATUSES,
+  type Command,
+  type MemberPatch,
+  type MetaPatch,
+  type TaskPatch
+} from '@domain'
+import { IMPORT_RESOLUTIONS, type SettingsPatch } from '@application'
 import {
   IdSchema,
   IsoDateSchema,
@@ -9,6 +20,7 @@ import {
   LanguageSchema,
   QuoteSchema,
   ReportOptionsSchema,
+  TagIdSchema,
   ThemeSchema
 } from '../validation/schemas'
 
@@ -28,7 +40,7 @@ export const TaskPatchSchema = z.strictObject({
   estimateMinutes: z.number().int().min(0).max(100_000 * 60).nullable().optional(),
   assigneeId: IdSchema.nullable().optional(),
   rateCents: z.number().int().min(0).max(1_000_000_000).nullable().optional(),
-  tags: z.array(z.string().max(40)).max(20).optional()
+  tagIds: z.array(TagIdSchema).max(MAX_TAGS_PER_TASK).optional()
 })
 
 const MemberFieldsShape = {
@@ -64,9 +76,17 @@ export const MetaPatchSchema = z.strictObject({
     })
     .nullable()
     .optional(),
+  // The domain checks the maximum of each unit; days have the highest one.
+  sprints: z
+    .strictObject({ length: z.number().int().min(1).max(MAX_SPRINT_LENGTH.day), unit: z.enum(SPRINT_UNITS) })
+    .nullable()
+    .optional(),
   quote: QuoteSchema.optional(),
   archived: z.boolean().optional()
 })
+
+// Tag names longer than the maximum reach the domain, which rejects them with a translated reason.
+const TagNameSchema = z.string().max(200)
 
 export const CommandSchema = z.discriminatedUnion('type', [
   z.strictObject({
@@ -108,7 +128,25 @@ export const CommandSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('member.addMany'), members: z.array(MemberInputSchema).max(200) }),
   z.strictObject({ type: z.literal('member.update'), id: IdSchema, patch: MemberPatchSchema }),
   z.strictObject({ type: z.literal('member.remove'), id: IdSchema, reassignTo: IdSchema.nullable() }),
-  z.strictObject({ type: z.literal('project.update'), patch: MetaPatchSchema })
+  z.strictObject({ type: z.literal('project.update'), patch: MetaPatchSchema }),
+  z.strictObject({
+    type: z.literal('tag.create'),
+    name: TagNameSchema,
+    color: z.enum(TAG_COLORS).optional(),
+    assignTo: z.array(IdSchema).max(10_000).optional()
+  }),
+  z.strictObject({
+    type: z.literal('tag.update'),
+    id: TagIdSchema,
+    patch: z.strictObject({ name: TagNameSchema.optional(), color: z.enum(TAG_COLORS).optional() })
+  }),
+  z.strictObject({ type: z.literal('tag.delete'), id: TagIdSchema }),
+  z.strictObject({
+    type: z.literal('tag.assign'),
+    ids: z.array(IdSchema).min(1).max(10_000),
+    tagId: TagIdSchema,
+    assigned: z.boolean()
+  })
 ])
 
 export const NewProjectSchema = z.strictObject({
@@ -129,6 +167,7 @@ export const SettingsPatchSchema = z.strictObject({
 })
 
 export const IdInputSchema = z.strictObject({ id: IdSchema })
+export const ResolveImportSchema = z.strictObject({ ticket: z.string().max(100), mode: z.enum(IMPORT_RESOLUTIONS) })
 export const CommandInputSchema = z.strictObject({ id: IdSchema, command: CommandSchema })
 export const ExportPdfInputSchema = z.strictObject({ id: IdSchema, options: ReportOptionsSchema.extend({ language: LanguageSchema }) })
 export const VoidSchema = z.unknown().transform(() => undefined)

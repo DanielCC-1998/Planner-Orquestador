@@ -212,9 +212,14 @@ describe('codec: format version 2 (story point scale)', () => {
     const { state } = loginSignupScenario()
     const scaled = { ...state, meta: { ...state.meta, pointScale: { minutesPerPoint: 120, overrides: [{ points: 5, minutes: 480 }] } } }
     const text = encodeProject(scaled)
-    expect(JSON.parse(text).schemaVersion).toBe(2)
+    expect(JSON.parse(text).schemaVersion).toBe(CURRENT_SCHEMA_VERSION)
     const decoded = decodeProject(text)
     expect(decoded.ok && decoded.value.state.meta.pointScale).toEqual(scaled.meta.pointScale)
+  })
+
+  it('a version 1 file goes through every migration up to the current version', () => {
+    const decoded = decodeProject(JSON.stringify(V1_DOCUMENT))
+    expect(decoded.ok && decoded.value.state.meta).toMatchObject({ sprints: { length: 2, unit: 'week' }, tags: [] })
   })
 
   it('an invalid scale in a file is reported as invalid project data', () => {
@@ -225,5 +230,116 @@ describe('codec: format version 2 (story point scale)', () => {
       ok: false,
       error: { code: 'CORRUPT', reason: 'INVALID_PROJECT_DATA', params: { detail: expect.stringContaining('meta.pointScale') } }
     })
+  })
+})
+
+describe('codec: format version 3 (status history, sprints, project tags)', () => {
+  const task = (id: string, title: string, tags: string[]) => ({
+    id,
+    title,
+    description: '',
+    status: 'review',
+    priority: 'medium',
+    storyPoints: null,
+    estimateMinutes: 60,
+    assigneeId: null,
+    rateCents: null,
+    tags,
+    createdAt: '2026-09-01T10:00:00.000Z',
+    updatedAt: '2026-09-01T10:00:00.000Z'
+  })
+  /** A project saved by version 2 of the format, with free-text tags. */
+  const V2_DOCUMENT = {
+    format: 'planner.project',
+    schemaVersion: 2,
+    meta: {
+      id: '33333333-3333-4333-8333-333333333333',
+      name: 'Version 2 project',
+      client: '',
+      description: '',
+      color: '#6366f1',
+      currency: 'EUR',
+      defaultRateCents: null,
+      defaultHoursPerDay: 8,
+      startDate: '2026-09-07',
+      workingWeekdays: [1, 2, 3, 4, 5],
+      contingencyBps: 0,
+      taxBps: 0,
+      taxLabel: '',
+      pointScale: null,
+      quote: { number: '', date: null, validityDays: 30, terms: '' },
+      archived: false,
+      createdAt: '2026-09-01T10:00:00.000Z',
+      updatedAt: '2026-09-01T10:00:00.000Z'
+    },
+    members: [],
+    tasks: [
+      task('44444444-4444-4444-8444-444444444441', 'Login', ['Design', 'Backend']),
+      task('44444444-4444-4444-8444-444444444442', 'Sign-up', [' design ', 'QA', ''])
+    ],
+    structure: { roots: ['44444444-4444-4444-8444-444444444441', '44444444-4444-4444-8444-444444444442'], children: {}, parents: {} }
+  }
+
+  it('free-text tags become project tags (one per name, ignoring case) and tasks keep them by id', () => {
+    const decoded = decodeProject(JSON.stringify(V2_DOCUMENT))
+    expect(decoded.ok).toBe(true)
+    if (!decoded.ok) return
+    const { state, migratedFrom } = decoded.value
+    expect(migratedFrom).toBe(2)
+    expect(state.meta.tags).toEqual([
+      { id: 'tag-1', name: 'Design', color: 'red' },
+      { id: 'tag-2', name: 'Backend', color: 'orange' },
+      { id: 'tag-3', name: 'QA', color: 'amber' }
+    ])
+    expect([...state.tasks.values()].map((t) => t.tagIds)).toEqual([
+      ['tag-1', 'tag-2'],
+      ['tag-1', 'tag-3']
+    ])
+    // Their past is unknown: empty history, statuses as they were; 2-week sprints.
+    expect([...state.tasks.values()].map((t) => [t.status, t.statusHistory])).toEqual([
+      ['review', []],
+      ['review', []]
+    ])
+    expect(state.meta.sprints).toEqual({ length: 2, unit: 'week' })
+    // Decoding the same file twice gives the same ids.
+    const again = decodeProject(JSON.stringify(V2_DOCUMENT))
+    expect(again.ok && again.value.state.meta.tags.map((t) => t.id)).toEqual(['tag-1', 'tag-2', 'tag-3'])
+  })
+
+  it('history, tags and sprints survive saving and loading', () => {
+    const { state, ids } = loginSignupScenario()
+    let s = run(state, { type: 'task.update', id: ids.form, patch: { status: 'done' } }).state
+    const tag = run(s, { type: 'tag.create', name: 'Design', assignTo: [ids.form] })
+    s = run(tag.state, { type: 'project.update', patch: { sprints: { length: 1, unit: 'month' } } }).state
+    const decoded = decodeProject(encodeProject(s))
+    expect(decoded.ok).toBe(true)
+    if (!decoded.ok) return
+    const back = decoded.value.state
+    expect(back.tasks.get(ids.form)!.statusHistory).toEqual(s.tasks.get(ids.form)!.statusHistory)
+    expect(back.tasks.get(ids.form)!.tagIds).toEqual([tag.id])
+    expect(back.meta).toMatchObject({ sprints: { length: 1, unit: 'month' }, tags: s.meta.tags })
+  })
+
+  it('damaged history, tags or sprints are cleaned up instead of sending the project to quarantine', () => {
+    const { state, ids } = loginSignupScenario()
+    const tagged = run(state, { type: 'tag.create', name: 'Design', assignTo: [ids.form] })
+    const doc = JSON.parse(encodeProject(tagged.state))
+    doc.meta.sprints = { length: 99, unit: 'month' }
+    doc.meta.tags = [...doc.meta.tags, { id: 'x', name: 'design', color: 'red' }, { id: 'bad id', name: 'B', color: 'red' }, 'junk']
+    const form = doc.tasks.find((t: { id: string }) => t.id === ids.form)
+    form.tagIds = [...form.tagIds, 'missing-tag', 42]
+    form.statusHistory = [{ at: 'yesterday', from: null, to: 'todo' }, { at: '2026-03-01T10:00:00+02:00', from: 'todo', to: 'done' }, 'junk']
+    const other = doc.tasks.find((t: { id: string }) => t.id === ids.table)
+    other.statusHistory = 'not a list'
+    delete other.tagIds
+    const decoded = decodeProject(JSON.stringify(doc))
+    expect(decoded.ok).toBe(true)
+    if (!decoded.ok) return
+    const back = decoded.value.state
+    expect(back.meta.sprints).toEqual({ length: 2, unit: 'week' })
+    expect(back.meta.tags).toEqual(tagged.state.meta.tags)
+    expect(back.tasks.get(ids.form)!.tagIds).toEqual([tagged.id])
+    expect(back.tasks.get(ids.form)!.statusHistory).toEqual([{ at: '2026-03-01T08:00:00.000Z', from: 'todo', to: 'done' }])
+    expect(back.tasks.get(ids.table)).toMatchObject({ statusHistory: [], tagIds: [] })
   })
 })

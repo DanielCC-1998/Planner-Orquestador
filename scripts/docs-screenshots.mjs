@@ -3,9 +3,10 @@
 //   pnpm docs:screenshots      (builds the app and runs this script)
 //
 // It starts the built app (out/) with temporary folders for data and preferences, creates
-// sample projects over IPC and walks through the interface in English, plus one screenshot in
-// Spanish. It never touches the user's real data.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+// sample projects over IPC, gives the first one a status history spread over past sprints
+// (written into its file, as weeks of work would leave it) and walks through the interface in
+// English, plus one screenshot in Spanish. It never touches the user's real data.
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -29,8 +30,12 @@ const SPANISH_LANGUAGE_LABEL = 'Idioma'
 // i18n:es-end
 
 // ─── Sample data ─────────────────────────────────────────────────────────────
-// Declarative tree: `h` estimated hours, `who` person key, `sp` story points,
-// `ref` links a task created earlier (shared subtask) at that position.
+// Declarative tree: `h` estimated hours, `who` person key, `sp` story points, `tags` tag keys,
+// `ref` links a task created earlier (shared subtask) at that position, and `history` the
+// status changes [date, status] that lead to its current status (oldest first).
+
+/** The sample project was created on this day; its sprints start on `startDate`. */
+const CREATED = '2026-08-05T09:00:00.000Z'
 
 const ISSUER = {
   name: 'North Studio Ltd.',
@@ -49,6 +54,12 @@ const PROJECTS = [
       { key: 'james', name: 'James Carter', role: 'Backend', rateCents: 5500, hoursPerDay: 8 },
       { key: 'lucy', name: 'Lucy Martin', role: 'Design', rateCents: 4000, hoursPerDay: 6 }
     ],
+    tags: [
+      { key: 'frontend', name: 'Frontend', color: 'blue' },
+      { key: 'backend', name: 'Backend', color: 'violet' },
+      { key: 'client', name: 'Needs client', color: 'amber' },
+      { key: 'risk', name: 'Risk', color: 'red' }
+    ],
     tasks: [
       {
         title: 'Authentication',
@@ -59,7 +70,8 @@ const PROJECTS = [
             h: 2,
             who: 'anna',
             sp: 3,
-            status: 'in_progress',
+            tags: ['frontend'],
+            history: [['2026-09-08', 'in_progress']],
             description:
               'Sign-in screen with email and password.\n- Remember the session for 30 days\n- Temporary lock after 5 failed attempts\n- “Forgot my password” link',
             children: [
@@ -69,19 +81,45 @@ const PROJECTS = [
                 h: 4,
                 who: 'james',
                 sp: 2,
-                status: 'done',
+                tags: ['backend'],
+                history: [
+                  ['2026-08-12', 'in_progress'],
+                  ['2026-08-20', 'done']
+                ],
                 description:
                   'Data model shared by login, sign-up and payments.\n\nIncludes a **unique index on email** and audit fields.'
               },
-              { title: 'Login form', h: 6, who: 'anna', sp: 3, status: 'in_progress' }
+              {
+                title: 'Login form',
+                h: 6,
+                who: 'anna',
+                sp: 3,
+                tags: ['frontend'],
+                // Sent back from review: the sprint report shows it moving back.
+                history: [
+                  ['2026-08-25', 'in_progress'],
+                  ['2026-09-03', 'review'],
+                  ['2026-09-10', 'in_progress']
+                ]
+              }
             ]
           },
           {
             title: 'Sign-up',
             children: [
               { ref: 'users' },
-              { title: 'Email validation', h: 5, who: 'james', sp: 3 },
-              { title: 'Terms and privacy', h: 2, who: 'anna', sp: 1, status: 'review' }
+              { title: 'Email validation', h: 5, who: 'james', sp: 3, tags: ['backend'] },
+              {
+                title: 'Terms and privacy',
+                h: 2,
+                who: 'anna',
+                sp: 1,
+                tags: ['client'],
+                history: [
+                  ['2026-09-15', 'in_progress'],
+                  ['2026-09-24', 'review']
+                ]
+              }
             ]
           }
         ]
@@ -89,32 +127,33 @@ const PROJECTS = [
       {
         title: 'Catalog',
         children: [
-          { title: 'Product list', h: 12, who: 'anna', sp: 5 },
+          { title: 'Product list', h: 12, who: 'anna', sp: 5, tags: ['frontend'] },
           {
             title: 'Search',
             children: [
-              { title: 'Search index', h: 8, who: 'james', sp: 5 },
-              { title: 'Filters and facets', h: 6, who: 'anna', sp: 3 }
+              { title: 'Search index', h: 8, who: 'james', sp: 5, tags: ['backend'] },
+              { title: 'Filters and facets', h: 6, who: 'anna', sp: 3, tags: ['frontend'] }
             ]
           },
-          { title: 'Product page', h: 8, who: 'anna', sp: 3 }
+          { title: 'Product page', h: 8, who: 'anna', sp: 3, tags: ['frontend'] }
         ]
       },
       {
         title: 'Checkout',
         children: [
-          { title: 'Cart', h: 10, who: 'anna', sp: 5 },
+          { title: 'Cart', h: 10, who: 'anna', sp: 5, tags: ['frontend'] },
           {
             title: 'Payment gateway',
             h: 16,
             who: 'james',
             sp: 8,
             priority: 'high',
+            tags: ['backend', 'risk'],
             description: 'Stripe and PayPal integration.\n1. Card payments\n2. Wallets\n3. Refunds from the dashboard',
             children: [{ ref: 'users' }]
           },
           // No typed hours: they come from its story points (2 × 3 h).
-          { title: 'Transactional emails', sp: 2 }
+          { title: 'Transactional emails', sp: 2, tags: ['backend'] }
         ]
       },
       {
@@ -125,10 +164,15 @@ const PROJECTS = [
             h: 12,
             who: 'lucy',
             sp: 5,
-            status: 'done',
+            tags: ['client'],
+            history: [
+              ['2026-08-11', 'in_progress'],
+              ['2026-08-21', 'review'],
+              ['2026-08-27', 'done']
+            ],
             description: 'Low-fidelity sketches of the 12 main screens, validated with the client in two iterations.'
           },
-          { title: 'Visual design', h: 16, who: 'lucy', sp: 8, status: 'in_progress' },
+          { title: 'Visual design', h: 16, who: 'lucy', sp: 8, tags: ['client'], history: [['2026-09-22', 'in_progress']] },
           { title: 'Style guide', who: 'lucy' }
         ]
       }
@@ -136,7 +180,8 @@ const PROJECTS = [
     meta: {
       contingencyBps: 1000,
       taxBps: 2100,
-      startDate: '2026-10-05',
+      startDate: '2026-08-10',
+      sprints: { length: 2, unit: 'week' },
       // Story points → hours: 1 point = 3 h by the rule of three, except 13 points = 36 h (not 39 h).
       pointScale: { minutesPerPoint: 180, overrides: [{ points: 13, minutes: 2160 }] },
       quote: {
@@ -190,7 +235,7 @@ const PROJECTS = [
   }
 ]
 
-// Runs inside the window (page.evaluate): it only uses the `planner` IPC bridge.
+// Runs inside the window (page.evaluate): it only uses the `planner` IPC bridge. Returns the project id.
 async function seedProject(spec) {
   const api = globalThis.planner
   const must = (r) => {
@@ -202,6 +247,9 @@ async function seedProject(spec) {
   const run = async (command) => must(await api.invoke('project.command', { id, command }))
   const members = {}
   for (const { key, ...fields } of spec.members) members[key] = (await run({ type: 'member.add', fields })).created[0]
+  // Tags are created once in the project; tasks get them by id.
+  const tags = {}
+  for (const { key, ...tag } of spec.tags ?? []) tags[key] = (await run({ type: 'tag.create', ...tag })).created[0]
   const keys = {}
   const create = async (parentId, nodes) => {
     for (const [index, node] of nodes.entries()) {
@@ -216,6 +264,7 @@ async function seedProject(spec) {
       if (node.status) fields.status = node.status
       if (node.priority) fields.priority = node.priority
       if (node.description) fields.description = node.description
+      if (node.tags) fields.tagIds = node.tags.map((key) => tags[key])
       const taskId = (await run({ type: 'task.create', parentId, fields })).created[0]
       if (node.key) keys[node.key] = taskId
       if (node.children) await create(taskId, node.children)
@@ -224,6 +273,41 @@ async function seedProject(spec) {
   await create(null, spec.tasks)
   if (spec.meta) await run({ type: 'project.update', patch: spec.meta })
   must(await api.invoke('project.close', { id }))
+  return id
+}
+
+/** Status history of the tasks of a spec by title: the changes listed in `history`, from to-do. */
+function historiesOf(nodes, out = new Map()) {
+  for (const node of nodes) {
+    if (node.history) {
+      let from = 'todo'
+      const changes = [{ at: CREATED, from: null, to: 'todo' }]
+      for (const [date, to] of node.history) {
+        changes.push({ at: `${date}T10:00:00.000Z`, from, to })
+        from = to
+      }
+      out.set(node.title, changes)
+    }
+    if (node.children) historiesOf(node.children, out)
+  }
+  return out
+}
+
+/**
+ * Writes the status history into the saved file (the app records it with the real time, so weeks
+ * of past work are written by hand). Run with the app closed.
+ */
+function backdateProject(file, spec) {
+  const doc = JSON.parse(readFileSync(file, 'utf8'))
+  const histories = historiesOf(spec.tasks)
+  doc.meta.createdAt = CREATED
+  for (const task of doc.tasks) {
+    const history = histories.get(task.title) ?? [{ at: CREATED, from: null, to: task.status }]
+    task.statusHistory = history
+    task.status = history[history.length - 1].to
+    task.createdAt = CREATED
+  }
+  writeFileSync(file, JSON.stringify(doc, null, 2))
 }
 
 // ─── Walk-through ────────────────────────────────────────────────────────────
@@ -237,12 +321,31 @@ mkdirSync(IMAGES, { recursive: true })
 // English from the first frame, whatever the language of this machine.
 writeFileSync(join(dataDir, 'settings.json'), JSON.stringify({ language: 'en', theme: 'light' }))
 
-const app = await _electron.launch({
-  executablePath: electronPath,
-  // Own user data: the interface preferences (localStorage) do not mix with the real ones.
-  args: [`--user-data-dir=${join(temp, 'user-data')}`, MAIN],
-  env: { ...process.env, PLANNER_DATA_DIR: dataDir, PLANNER_E2E_DIR: exportDir }
-})
+const launch = () =>
+  _electron.launch({
+    executablePath: electronPath,
+    // Own user data: the interface preferences (localStorage) do not mix with the real ones.
+    args: [`--user-data-dir=${join(temp, 'user-data')}`, MAIN],
+    env: { ...process.env, PLANNER_DATA_DIR: dataDir, PLANNER_E2E_DIR: exportDir }
+  })
+
+// 1. Sample projects, then (app closed) the past status history of the first one.
+const seeding = await launch()
+try {
+  const page = await seeding.firstWindow()
+  await page.waitForLoadState('domcontentloaded')
+  await page.evaluate((issuer) => globalThis.planner.invoke('settings.set', { issuer }), ISSUER)
+  const ids = []
+  for (const spec of PROJECTS) ids.push(await page.evaluate(seedProject, spec))
+  await seeding.close()
+  backdateProject(join(dataDir, 'projects', `${ids[0]}.json`), PROJECTS[0])
+} catch (e) {
+  await seeding.close()
+  throw e
+}
+
+// 2. The walk-through.
+const app = await launch()
 
 try {
   const page = await app.firstWindow()
@@ -258,9 +361,6 @@ try {
   }
   const invoke = (channel, input) => page.evaluate(([c, i]) => globalThis.planner.invoke(c, i), [channel, input])
 
-  await invoke('settings.set', { issuer: ISSUER })
-  for (const spec of PROJECTS) await page.evaluate(seedProject, spec)
-  await page.reload()
   await page.getByText('ACME online store').first().waitFor()
   await shot('projects')
 
@@ -278,6 +378,14 @@ try {
   await page.getByRole('treeitem').filter({ hasText: 'Design users table' }).first().click()
   await page.keyboard.press(' ')
   await shot('detail')
+  // The tag picker of the task: the project's tags are picked, not retyped.
+  const panel = page.getByRole('complementary', { name: 'Task details' })
+  await panel.getByRole('button', { name: 'Tag', exact: true }).click()
+  await page.getByPlaceholder('Find or create a tag…').waitFor()
+  await page.waitForTimeout(300)
+  await page.screenshot({ path: join(IMAGES, 'tags.png') })
+  console.log('  docs/images/tags.png')
+  await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Close panel' }).click()
 
   await page.getByRole('tab', { name: 'Board' }).click()
@@ -288,7 +396,13 @@ try {
   await page.getByRole('button', { name: 'Project settings' }).click()
   await page.getByRole('dialog').getByRole('tab', { name: 'Story points' }).click()
   await shot('story-points')
+  await page.getByRole('dialog').getByRole('tab', { name: 'Sprints' }).click()
+  await shot('sprints')
   await page.getByRole('button', { name: 'Cancel' }).click()
+
+  await page.getByRole('button', { name: 'Tags', exact: true }).click()
+  await shot('tags-dialog')
+  await page.getByRole('button', { name: 'Done' }).click()
 
   await page.getByRole('tab', { name: 'Tree' }).click()
   await invoke('settings.set', { theme: 'dark' })
@@ -306,28 +420,49 @@ try {
   await page.getByRole('menuitem', { name: 'English', exact: true }).click()
   await page.locator('html[lang="en"]').waitFor({ state: 'attached' })
 
+  /** Waits for the PDF the automatic dialogs write into exportDir and moves it to `target`. */
+  const takePdf = async (target) => {
+    let pdfPath = null
+    for (let i = 0; i < 80 && !pdfPath; i++) {
+      await page.waitForTimeout(250)
+      const name = readdirSync(exportDir).find((f) => f.endsWith('.pdf'))
+      if (name && statSync(join(exportDir, name)).size > 0) pdfPath = join(exportDir, name)
+    }
+    if (!pdfPath) throw new Error('The PDF was not generated')
+    await page.waitForTimeout(500)
+    rmSync(target, { force: true })
+    renameSync(pdfPath, target)
+  }
+
+  // The sample quote is an internal version: statuses (with the progress by sprint) and tags on.
   await page.getByRole('button', { name: 'Export PDF' }).click()
+  const exportDialog = page.getByRole('dialog')
+  await exportDialog.getByLabel('Status', { exact: true }).check()
+  await exportDialog.getByLabel('Tags', { exact: true }).check()
+  // Ticking the boxes scrolled the dialog: back to the top, where the language is.
+  await exportDialog.evaluate((dialog) => dialog.querySelectorAll('.overflow-y-auto').forEach((el) => (el.scrollTop = 0)))
   await shot('export-pdf')
   await page.getByRole('button', { name: 'Save PDF…' }).click()
-
-  // The PDF is written to exportDir (automatic dialogs); wait until it is complete.
-  let pdfPath = null
-  for (let i = 0; i < 80 && !pdfPath; i++) {
-    await page.waitForTimeout(250)
-    const name = readdirSync(exportDir).find((f) => f.endsWith('.pdf'))
-    if (name && statSync(join(exportDir, name)).size > 0) pdfPath = join(exportDir, name)
-  }
-  if (!pdfPath) throw new Error('The PDF was not generated')
-  await page.waitForTimeout(500)
-  rmSync(PDF, { force: true })
-  renameSync(pdfPath, PDF)
+  await takePdf(PDF)
   console.log('  docs/sample-quote.pdf')
 
+  // The "Task status" section alone, to preview its first page: every other section off.
+  const progressPdf = join(temp, 'progress.pdf')
+  await page.getByRole('button', { name: 'Export PDF' }).click()
+  for (const section of ['Cover', 'Summary and budget', 'Task breakdown (WBS)', 'Team and workload', 'Shared subtasks appendix', 'Terms']) {
+    await exportDialog.getByLabel(section, { exact: true }).uncheck()
+  }
+  await exportDialog.getByLabel('Do not include').check()
+  await exportDialog.getByLabel('Open the PDF when finished').uncheck()
+  await page.getByRole('button', { name: 'Save PDF…' }).click()
+  await takePdf(progressPdf)
+
   // Preview of a few pages with Chromium's PDF viewer, cropped to the sheet.
-  for (const [name, pageNumber] of [
-    ['pdf-cover', 1],
-    ['pdf-summary', 2],
-    ['pdf-breakdown', 3]
+  for (const [name, pdf, pageNumber] of [
+    ['pdf-cover', PDF, 1],
+    ['pdf-summary', PDF, 2],
+    ['pdf-breakdown', PDF, 3],
+    ['pdf-progress', progressPdf, 1]
   ]) {
     const png = await app.evaluate(
       async ({ BrowserWindow }, { url }) => {
@@ -365,7 +500,7 @@ try {
           .toPNG()
           .toString('base64')
       },
-      { url: `${pathToFileURL(PDF).href}#page=${pageNumber}&toolbar=0&navpanes=0&view=Fit` }
+      { url: `${pathToFileURL(pdf).href}#page=${pageNumber}&toolbar=0&navpanes=0&view=Fit` }
     )
     writeFileSync(join(IMAGES, `${name}.png`), Buffer.from(png, 'base64'))
     console.log(`  docs/images/${name}.png`)

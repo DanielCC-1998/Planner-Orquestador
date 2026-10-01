@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildReportModel, DEFAULT_REPORT_OPTIONS, EMPTY_ISSUER, type ReportOptions } from '@application'
-import { LANGUAGES, type Language, type ProjectState } from '@domain'
-import { loginSignupScenario, run } from '@tests/support/builders'
+import { apply, LANGUAGES, type Language, type ProjectState } from '@domain'
+import { loginSignupScenario, run, testContext } from '@tests/support/builders'
 import { escapeHtml, renderDescriptionHtml } from '@infrastructure/pdf/descriptionHtml'
 import { footerTemplate, renderReportHtml } from '@infrastructure/pdf/reportHtml'
 import { reportFileName } from '@infrastructure/pdf/reportText'
@@ -14,8 +14,10 @@ const optionsIn = (language: Language, extra: Partial<ReportOptions> = {}): Repo
   language
 })
 
-// Intl separates amount and symbol with a no-break space (U+00A0); it is normalized for comparisons.
-const plain = (s: string) => s.split(String.fromCharCode(0xa0)).join(' ')
+// Intl uses special spaces: no-break (U+00A0) between amount and symbol, thin ones (U+2009, U+202F)
+// around the dash of date ranges. They are normalized for comparisons.
+const SPECIAL_SPACES = new RegExp(`[${String.fromCharCode(0xa0, 0x2009, 0x202f)}]`, 'g')
+const plain = (s: string) => s.replace(SPECIAL_SPACES, ' ')
 
 /** What the PDF must show in each language for the projects of these tests. */
 interface Expected {
@@ -84,7 +86,7 @@ describe('renderReportHtml', () => {
   const titleOf = (id: string) => state.tasks.get(id)!.title
   const issuer = { ...EMPTY_ISSUER, name: 'Studio & Co', taxId: 'B-12345678' }
   const modelIn = (language: Language, s: ProjectState = withTax, extra: Partial<ReportOptions> = {}) =>
-    buildReportModel(s, optionsIn(language, extra), issuer, NOW)
+    buildReportModel(s, optionsIn(language, extra), issuer, { now: NOW })
   const htmlIn = (language: Language, s: ProjectState = withTax, extra: Partial<ReportOptions> = {}) =>
     plain(renderReportHtml(modelIn(language, s, extra)))
 
@@ -202,7 +204,7 @@ describe('descriptions in the PDF', () => {
   const titleOf = (id: string) => state.tasks.get(id)!.title
   // Only the <body>: the embedded CSS also mentions the classes and the section.
   const html = (language: Language, descriptions: 'none' | 'inline' | 'section', s = described) => {
-    const doc = renderReportHtml(buildReportModel(s, optionsIn(language, { descriptions }), EMPTY_ISSUER, NOW))
+    const doc = renderReportHtml(buildReportModel(s, optionsIn(language, { descriptions }), EMPTY_ISSUER, { now: NOW }))
     return doc.slice(doc.indexOf('<body>'))
   }
 
@@ -240,4 +242,88 @@ describe('descriptions in the PDF', () => {
       })
     })
   }
+})
+
+describe('"Task status" section and tags in the PDF', () => {
+  const at = (date: string) => `${date}T10:00:00.000Z`
+  /** Weekly sprints from Sep 7: two tasks finish in sprint 1, one goes back in sprint 4 (the current one). */
+  function scenario() {
+    const { state, ids } = loginSignupScenario()
+    let s = run(state, { type: 'project.update', patch: { startDate: '2026-09-07', sprints: { length: 1, unit: 'week' } } }).state
+    const change = (id: string, status: 'done' | 'review', date: string) => {
+      const r = apply(s, { type: 'task.update', id, patch: { status } }, testContext(at(date)))
+      if (!r.ok) throw new Error(r.error.message)
+      s = r.value.state
+    }
+    change(ids.form, 'done', '2026-09-08')
+    change(ids.table, 'done', '2026-09-09')
+    change(ids.table, 'review', '2026-09-29')
+    s = run(s, { type: 'task.create', parentId: ids.signup, fields: { title: '' } }).state
+    const tag = run(s, { type: 'tag.create', name: 'Design <UX>', color: 'teal', assignTo: [ids.form] })
+    return { state: tag.state, ids }
+  }
+  const { state } = scenario()
+  const body = (language: Language, columns: Partial<ReportOptions['columns']>) => {
+    const options = optionsIn(language, { columns: { ...DEFAULT_REPORT_OPTIONS.columns, ...columns } })
+    const doc = plain(renderReportHtml(buildReportModel(state, options, EMPTY_ISSUER, { now: NOW, localDate: (iso) => iso.slice(0, 10) })))
+    return doc.slice(doc.indexOf('<body>'))
+  }
+
+  const TEXTS: Readonly<Record<Language, readonly string[]>> = {
+    en: [
+      'Task status',
+      'Status on Sep 30, 2026 · sprints of 1 week starting Sep 7, 2026',
+      'Progress by sprint',
+      '<b>Sprint 1</b><span class="when">Sep 7 – 13, 2026</span>',
+      '2 done',
+      '<b>Sprints 2–3</b> · Sep 14 – 27, 2026 · No status changes',
+      '<span class="current">in progress</span>',
+      '1 moved back',
+      '<span class="back">Moved back</span>',
+      '<span class="ltitle">Untitled</span>'
+    ],
+    // i18n:es-start
+    es: [
+      'Estado de las tareas',
+      'Estado a 30 sept 2026 · sprints de 1 semana desde el 7 sept 2026',
+      'Progreso por sprint',
+      '<b>Sprint 1</b><span class="when">7–13 sept 2026</span>',
+      '2 terminadas',
+      '<b>Sprints 2–3</b> · 14–27 sept 2026 · Sin cambios de estado',
+      '<span class="current">en curso</span>',
+      '1 retrocede',
+      '<span class="back">Retrocede</span>',
+      '<span class="ltitle">Sin título</span>'
+    ]
+    // i18n:es-end
+  }
+
+  for (const language of LANGUAGES) {
+    describe(`in ${language}`, () => {
+      it('with the status option: lanes, the sprint by sprint changes and the quiet sprints in one line', () => {
+        const html = body(language, { status: true })
+        for (const text of TEXTS[language]) expect(html).toContain(text)
+        expect(html).toContain('<span class="dir backward">▼</span><span class="pill done">')
+        expect(html).toContain('<div class="lane review">')
+      })
+
+      it('without it there is no section', () => {
+        const html = body(language, { status: false })
+        expect(html).not.toContain(TEXTS[language][0])
+        expect(html).not.toContain('class="lane')
+      })
+
+      it('tag chips only with the tags option, escaped and in their colors', () => {
+        expect(body(language, { status: true })).not.toContain('class="chip"')
+        const html = body(language, { status: true, tags: true })
+        expect(html).toContain('<span class="chip" style="background:#0f766e;color:#ffffff">Design &lt;UX&gt;</span>')
+      })
+    })
+  }
+
+  it('a project without sprints says so', () => {
+    const off = run(state, { type: 'project.update', patch: { sprints: null } }).state
+    const doc = renderReportHtml(buildReportModel(off, optionsIn('en', { columns: { ...DEFAULT_REPORT_OPTIONS.columns, status: true } }), EMPTY_ISSUER, { now: NOW }))
+    expect(doc).toContain('This project does not work in sprints.')
+  })
 })

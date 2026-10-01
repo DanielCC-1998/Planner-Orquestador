@@ -29,3 +29,14 @@ export function codeDepth(code: string): number {
 export function codePrefix(code: string, depth: number): string {
   return code.split('.').slice(0, depth).join('.')
 }
+
+/** Order of WBS codes, number by number: 1.2 < 1.10 < 2 (a plain string comparison puts 1.10 first). */
+export function compareCodes(a: string, b: string): number {
+  const pa = a.split('.')
+  const pb = b.split('.')
+  for (let i = 0; i < Math.min(pa.length, pb.length); i++) {
+    const diff = Number(pa[i]) - Number(pb[i])
+    if (diff !== 0) return diff
+  }
+  return pa.length - pb.length
+}

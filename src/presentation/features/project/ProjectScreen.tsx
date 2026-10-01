@@ -1,9 +1,10 @@
 import { useEffect } from 'react'
-import { FileDown, Loader2, Settings2, Users } from 'lucide-react'
+import { DatabaseBackup, FileDown, Loader2, Settings2, Tags, Users } from 'lucide-react'
 import { Button } from '../../components/ui/button'
-import { Avatar, Badge } from '../../components/ui/misc'
+import { Avatar, Badge, Tooltip } from '../../components/ui/misc'
 import { useI18n } from '../../i18n'
 import { readJson } from '../../lib/storage'
+import { useCatalog } from '../../stores/catalog'
 import { useProject } from '../../stores/project'
 import { useUi } from '../../stores/ui'
 import { BoardView } from '../board/BoardView'
@@ -46,9 +47,17 @@ function ProjectHeader() {
             <Users className="size-4" /> {t.toolbar.team(members.length)}
           </span>
         </button>
+        <Button variant="outline" onClick={() => openDialog({ type: 'tags' })}>
+          <Tags /> {t.tags.button}
+        </Button>
         <Button variant="outline" onClick={() => openDialog({ type: 'projectSettings' })}>
           <Settings2 /> {t.toolbar.projectSettings}
         </Button>
+        <Tooltip content={t.toolbar.exportBackup}>
+          <Button variant="outline" size="icon" onClick={() => void useCatalog.getState().exportJson(meta.id)} aria-label={t.toolbar.exportBackup}>
+            <DatabaseBackup />
+          </Button>
+        </Tooltip>
         <Button variant="primary" onClick={() => openDialog({ type: 'exportPdf', projectId: meta.id, currency: meta.currency })}>
           <FileDown /> {t.toolbar.exportPdf}
         </Button>

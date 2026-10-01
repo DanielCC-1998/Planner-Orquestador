@@ -19,7 +19,12 @@ export const en = {
     rate: 'Hourly rate',
     storyPoints: 'Story points',
     assignee: 'Assignee',
-    status: 'Status'
+    status: 'Status',
+    tags: 'Tags'
+  },
+  columnHints: {
+    status: 'Also adds the “Task status” section, with the progress by sprint',
+    tags: 'Colored chips next to each task'
   },
   depth: 'Breakdown depth',
   depthHint: 'Deeper levels are added up into their task',
@@ -75,7 +80,12 @@ export const es: typeof en = {
     rate: 'Tarifa por hora',
     storyPoints: 'Puntos de historia',
     assignee: 'Responsable',
-    status: 'Estado'
+    status: 'Estado',
+    tags: 'Etiquetas'
+  },
+  columnHints: {
+    status: 'Añade también la sección «Estado de las tareas», con el progreso por sprint',
+    tags: 'Chips de color junto a cada tarea'
   },
   depth: 'Profundidad del desglose',
   depthHint: 'Los niveles más profundos se suman en su tarea',

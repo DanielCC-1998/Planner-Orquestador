@@ -10,13 +10,15 @@ export interface Filters {
   /** Person ids; 'none' = unassigned. */
   readonly assignees: readonly string[]
   readonly statuses: readonly TaskStatus[]
+  /** Tag ids: tasks with any of them. */
+  readonly tags: readonly string[]
   readonly flags: readonly FilterFlag[]
 }
 
-export const EMPTY_FILTERS: Filters = { text: '', assignees: [], statuses: [], flags: [] }
+export const EMPTY_FILTERS: Filters = { text: '', assignees: [], statuses: [], tags: [], flags: [] }
 
 export function hasActiveFilters(f: Filters): boolean {
-  return f.text.trim() !== '' || f.assignees.length > 0 || f.statuses.length > 0 || f.flags.length > 0
+  return f.text.trim() !== '' || f.assignees.length > 0 || f.statuses.length > 0 || f.tags.length > 0 || f.flags.length > 0
 }
 
 export type Route = { readonly name: 'projects' } | { readonly name: 'project'; readonly id: string }
@@ -25,6 +27,7 @@ export type DialogState =
   | { readonly type: 'newProject' }
   | { readonly type: 'projectSettings' }
   | { readonly type: 'team' }
+  | { readonly type: 'tags' }
   | { readonly type: 'settings' }
   | { readonly type: 'exportPdf'; readonly projectId: string; readonly currency: string }
   /** Link an existing task as a child of `parentId`. */

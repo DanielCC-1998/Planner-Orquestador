@@ -5,7 +5,7 @@ import { assertGraphInvariants, projectArb } from '@tests/support/arbitraries'
 import { loginSignupScenario, newState, run, testContext } from '@tests/support/builders'
 import { apply } from '@domain/project/apply'
 import type { Command } from '@domain/project/commands'
-import { MAX_TITLE_LENGTH } from '@domain'
+import { MAX_TITLE_LENGTH, TASK_STATUSES } from '@domain'
 
 describe('apply', () => {
   it('creates nested tasks with no depth limit', () => {
@@ -86,7 +86,17 @@ describe('apply', () => {
           const ps = s.graph.parents(child)
           const from = ps.length ? ps[c % ps.length]! : null
           let cmd: Command
-          switch (a % 7) {
+          const tags = s.meta.tags
+          switch (a % 9) {
+            case 7:
+              cmd = { type: 'task.bulkUpdate', ids: [child, pick(c)], patch: { status: TASK_STATUSES[d % 4]! } }
+              break
+            case 8:
+              cmd =
+                tags.length > 0
+                  ? { type: 'tag.assign', ids: [child, pick(c)], tagId: tags[d % tags.length]!.id, assigned: e % 3 !== 0 }
+                  : { type: 'task.update', id: child, patch: { status: TASK_STATUSES[d % 4]! } }
+              break
             case 0:
               cmd = { type: 'task.create', parentId: d % 3 === 0 ? null : pick(c), index: e % 4, fields: { estimateMinutes: e % 300 } }
               break
@@ -115,6 +125,17 @@ describe('apply', () => {
           }
           s = r.value.state
           assertGraphInvariants(s)
+          const tagIds = new Set(s.meta.tags.map((t) => t.id))
+          for (const task of s.tasks.values()) {
+            // The history ends in the current status and never goes back in time; tags exist.
+            const last = task.statusHistory[task.statusHistory.length - 1]
+            if (last) expect(last.to).toBe(task.status)
+            for (let i = 1; i < task.statusHistory.length; i++) {
+              expect(task.statusHistory[i]!.at >= task.statusHistory[i - 1]!.at).toBe(true)
+              expect(task.statusHistory[i]!.from).toBe(task.statusHistory[i - 1]!.to)
+            }
+            for (const id of task.tagIds) expect(tagIds.has(id)).toBe(true)
+          }
           const est = estimate(s)
           expect(sumMetrics(est.attributed, s.graph.roots()).minutes).toBe(est.total.minutes)
           if (cmd.type === 'task.delete' && cmd.mode === 'cascade') {

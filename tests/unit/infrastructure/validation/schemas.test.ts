@@ -18,6 +18,13 @@ describe('ReportOptionsSchema', () => {
     if (parsed.success) expect(parsed.data.language).toBeUndefined()
   })
 
+  it('options saved before tags could be printed are still valid and print no tags', () => {
+    const { tags: _omitted, ...columns } = DEFAULT_REPORT_OPTIONS.columns
+    const parsed = ReportOptionsSchema.safeParse({ ...DEFAULT_REPORT_OPTIONS, columns })
+    expect(parsed.success).toBe(true)
+    if (parsed.success) expect(parsed.data.columns.tags).toBe(false)
+  })
+
   it('rejects an unknown placement or language', () => {
     expect(ReportOptionsSchema.safeParse({ ...DEFAULT_REPORT_OPTIONS, descriptions: 'margin' }).success).toBe(false)
     expect(ReportOptionsSchema.safeParse({ ...DEFAULT_REPORT_OPTIONS, language: 'fr' }).success).toBe(false)
@@ -50,5 +57,28 @@ describe('PointScaleSchema and the project.update input', () => {
     expect(CommandInputSchema.safeParse(input(scale)).success).toBe(true)
     expect(CommandInputSchema.safeParse(input(null)).success).toBe(true)
     expect(CommandInputSchema.safeParse(input({ ...scale, rounding: 'up' })).success).toBe(false)
+  })
+})
+
+describe('IPC input of sprints and tags', () => {
+  const id = '00000000-0000-4000-8000-000000000001'
+  const command = (command: unknown) => CommandInputSchema.safeParse({ id, command }).success
+
+  it('project.update carries the sprint length (or null) but not the tags', () => {
+    expect(command({ type: 'project.update', patch: { sprints: { length: 2, unit: 'week' } } })).toBe(true)
+    expect(command({ type: 'project.update', patch: { sprints: null } })).toBe(true)
+    expect(command({ type: 'project.update', patch: { sprints: { length: 2, unit: 'year' } } })).toBe(false)
+    expect(command({ type: 'project.update', patch: { tags: [] } })).toBe(false)
+  })
+
+  it('tag commands and tag ids of a task', () => {
+    expect(command({ type: 'tag.create', name: 'Design', color: 'teal', assignTo: [id] })).toBe(true)
+    expect(command({ type: 'tag.create', name: 'Design', color: 'silver' })).toBe(false)
+    expect(command({ type: 'tag.update', id: 'tag-1', patch: { name: 'UX' } })).toBe(true)
+    expect(command({ type: 'tag.update', id: 'tag 1', patch: {} })).toBe(false)
+    expect(command({ type: 'tag.delete', id: 'tag-1' })).toBe(true)
+    expect(command({ type: 'tag.assign', ids: [id], tagId: 'tag-1', assigned: true })).toBe(true)
+    expect(command({ type: 'task.update', id, patch: { tagIds: ['tag-1'] } })).toBe(true)
+    expect(command({ type: 'task.update', id, patch: { tags: ['Design'] } })).toBe(false)
   })
 })

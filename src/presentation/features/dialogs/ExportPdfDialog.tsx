@@ -17,7 +17,7 @@ import { toast } from '../../stores/toasts'
 /** Initial form options (the last ones used in each project are remembered). */
 const INITIAL: Omit<ReportOptions, 'language'> = {
   sections: { cover: true, summary: true, breakdown: true, workload: true, shared: true, terms: true },
-  columns: { hours: true, cost: true, rate: false, storyPoints: true, assignee: true, status: false },
+  columns: { hours: true, cost: true, rate: false, storyPoints: true, assignee: true, status: false, tags: false },
   maxDepth: null,
   subtotalDepth: 2,
   pageSize: 'A4',
@@ -28,7 +28,7 @@ const INITIAL: Omit<ReportOptions, 'language'> = {
 
 const SECTIONS: ReadonlyArray<keyof ReportSections> = ['cover', 'summary', 'breakdown', 'workload', 'shared', 'terms']
 
-const COLUMNS: ReadonlyArray<keyof ReportColumns> = ['hours', 'cost', 'rate', 'storyPoints', 'assignee', 'status']
+const COLUMNS: ReadonlyArray<keyof ReportColumns> = ['hours', 'cost', 'rate', 'storyPoints', 'assignee', 'status', 'tags']
 
 const DESCRIPTION_PLACEMENTS: readonly DescriptionPlacement[] = ['none', 'inline', 'section']
 
@@ -111,9 +111,12 @@ export function ExportPdfDialog({ projectId, onClose }: { projectId: string; onC
         <div className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.export.columnsTitle}</h3>
           {COLUMNS.map((k) => (
-            <Check key={k} checked={options.columns[k]} onChange={(v) => set({ columns: { ...options.columns, [k]: v } })}>
-              {t.export.columns[k]}
-            </Check>
+            <div key={k} className="flex flex-col">
+              <Check checked={options.columns[k]} onChange={(v) => set({ columns: { ...options.columns, [k]: v } })}>
+                {t.export.columns[k]}
+              </Check>
+              {k === 'status' || k === 'tags' ? <p className="pl-6 text-xs text-muted-foreground">{t.export.columnHints[k]}</p> : null}
+            </div>
           ))}
         </div>
         <Field label={t.export.depth} hint={t.export.depthHint}>

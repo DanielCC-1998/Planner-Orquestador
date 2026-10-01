@@ -1,9 +1,29 @@
+import type { SprintUnit } from '@domain'
+
 /** Texts of the project settings dialog. */
 export const en = {
   title: 'Project settings',
   saved: 'Project settings saved',
   checkFields: 'Check the highlighted fields',
-  tabs: { general: 'General', planning: 'Planning and costs', points: 'Story points', quote: 'Quote (PDF)' },
+  tabs: { general: 'General', planning: 'Planning and costs', points: 'Story points', sprints: 'Sprints', quote: 'Quote (PDF)' },
+  /** Sprint length; the PDF groups the status changes of the tasks by sprint. */
+  sprints: {
+    intro:
+      'Sprints split the project into periods of the same length. When the PDF includes the status of the tasks, it shows sprint by sprint which tasks changed status.',
+    enabled: 'This project works in sprints',
+    length: 'Length of each sprint',
+    unit: 'Unit',
+    units: { day: 'days', week: 'weeks', month: 'months' } satisfies Record<SprintUnit, string>,
+    invalidLength: (max: number) => `A whole number from 1 to ${max}`,
+    startsOnStart: (date: string) => `Sprint 1 starts on ${date}, the start date of the project (Planning and costs tab).`,
+    startsOnCreation: (date: string) =>
+      `Sprint 1 starts on ${date}, the day the project was created. Set a start date in the Planning and costs tab to change it.`,
+    current: (n: number, range: string) => `Current sprint: Sprint ${n} · ${range}`,
+    notStarted: (date: string) => `The first sprint starts on ${date}.`,
+    offHint: 'Without sprints, the PDF shows the status of the tasks without dividing their changes by period.',
+    historyHint:
+      'Every status change of a task is recorded with its date and time. Changing the length of the sprints regroups the changes already recorded.'
+  },
   /** Story points → hours scale. */
   points: {
     intro:
@@ -75,7 +95,24 @@ export const es: typeof en = {
   title: 'Ajustes del proyecto',
   saved: 'Ajustes del proyecto guardados',
   checkFields: 'Revisa los campos marcados',
-  tabs: { general: 'General', planning: 'Planificación y costes', points: 'Puntos de historia', quote: 'Presupuesto (PDF)' },
+  tabs: { general: 'General', planning: 'Planificación y costes', points: 'Puntos de historia', sprints: 'Sprints', quote: 'Presupuesto (PDF)' },
+  sprints: {
+    intro:
+      'Los sprints dividen el proyecto en periodos de la misma duración. Cuando el PDF incluye el estado de las tareas, muestra sprint a sprint qué tareas cambiaron de estado.',
+    enabled: 'Este proyecto trabaja por sprints',
+    length: 'Duración de cada sprint',
+    unit: 'Unidad',
+    units: { day: 'días', week: 'semanas', month: 'meses' },
+    invalidLength: (max) => `Un número entero de 1 a ${max}`,
+    startsOnStart: (date) => `El sprint 1 empieza el ${date}, la fecha de inicio del proyecto (pestaña Planificación y costes).`,
+    startsOnCreation: (date) =>
+      `El sprint 1 empieza el ${date}, el día en que se creó el proyecto. Pon una fecha de inicio en la pestaña Planificación y costes para cambiarlo.`,
+    current: (n, range) => `Sprint actual: sprint ${n} · ${range}`,
+    notStarted: (date) => `El primer sprint empieza el ${date}.`,
+    offHint: 'Sin sprints, el PDF muestra el estado de las tareas sin dividir sus cambios por periodos.',
+    historyHint:
+      'Cada cambio de estado de una tarea se guarda con su fecha y hora. Si cambias la duración de los sprints, los cambios ya guardados se reagrupan.'
+  },
   points: {
     intro:
       'Las tareas con puntos de historia y sin horas escritas a mano toman sus horas de esta escala. Si la cambias, se actualizan todas.',

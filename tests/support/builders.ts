@@ -2,6 +2,7 @@ import { apply, type ApplyContext } from '@domain/project/apply'
 import type { Command } from '@domain/project/commands'
 import { createProjectState, type NewProjectInput } from '@domain'
 import type { ProjectState } from '@domain'
+import type { Clock } from '@application'
 
 let counter = 0
 
@@ -12,8 +13,13 @@ export function testId(): string {
   return `00000000-0000-4000-8000-${hex}`
 }
 
-export function testContext(): ApplyContext {
-  return { now: '2026-01-01T00:00:00.000Z', newId: testId }
+export function testContext(now = '2026-01-01T00:00:00.000Z'): ApplyContext {
+  return { now, newId: testId }
+}
+
+/** Clock stopped at `now`. Local dates are the UTC ones, so tests do not depend on the machine's time zone. */
+export function fixedClock(now = '2026-01-01T00:00:00.000Z'): Clock {
+  return { now: () => now, localDate: (at) => at.slice(0, 10) }
 }
 
 export function newState(input: Partial<NewProjectInput> = {}): ProjectState {

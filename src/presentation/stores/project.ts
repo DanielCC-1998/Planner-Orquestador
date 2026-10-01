@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { estimate, fromProjectData, type Command, type Estimation, type ProjectState } from '@domain'
+import { estimate, fromProjectData, type Command, type Estimation, type ProjectState, type TagDef } from '@domain'
 import type { Delta, SaveStatus } from '@application'
 import { applyDelta } from '@shared/ipc/applyDelta'
 import { getI18n } from '../i18n'
@@ -12,6 +12,11 @@ interface ProjectStore {
   state: ProjectState | null
   /** Recomputed on every change (the domain is pure and fast: O(tasks + edges)). */
   estimation: Estimation | null
+  /**
+   * Tags of the project. Every command brings a new `meta`, so this keeps the same array while
+   * the tags do not change: the memoized tree rows receive it without re-rendering.
+   */
+  tags: readonly TagDef[]
   revision: number
   canUndo: boolean
   canRedo: boolean
@@ -24,6 +29,12 @@ interface ProjectStore {
   dispatch(command: Command, options?: { quiet?: boolean }): Promise<Delta | null>
   undo(): Promise<void>
   redo(): Promise<void>
+}
+
+/** `next` unless it has the same tags as `prev` (then `prev`, to keep the reference). */
+function sameTags(prev: readonly TagDef[], next: readonly TagDef[]): readonly TagDef[] {
+  if (prev.length !== next.length) return next
+  return prev.every((t, i) => t.id === next[i]!.id && t.name === next[i]!.name && t.color === next[i]!.color) ? prev : next
 }
 
 /** Commands run one after another: each one applies to the result of the previous one. */
@@ -52,6 +63,7 @@ export const useProject = create<ProjectStore>((set, get) => {
     set({
       state: next,
       estimation: estimate(next),
+      tags: sameTags(get().tags, next.meta.tags),
       revision: delta.revision,
       canUndo: delta.canUndo,
       canRedo: delta.canRedo
@@ -62,6 +74,7 @@ export const useProject = create<ProjectStore>((set, get) => {
     id: null,
     state: null,
     estimation: null,
+    tags: [],
     revision: 0,
     canUndo: false,
     canRedo: false,
@@ -79,6 +92,7 @@ export const useProject = create<ProjectStore>((set, get) => {
           id,
           state: state.value,
           estimation: estimate(state.value),
+          tags: state.value.meta.tags,
           revision: snap.revision,
           canUndo: snap.canUndo,
           canRedo: snap.canRedo,
@@ -98,7 +112,7 @@ export const useProject = create<ProjectStore>((set, get) => {
     close() {
       const id = get().id
       if (id) void tryCall('project.close', { id })
-      set({ id: null, state: null, estimation: null, revision: 0, canUndo: false, canRedo: false, saveStatus: null })
+      set({ id: null, state: null, estimation: null, tags: [], revision: 0, canUndo: false, canRedo: false, saveStatus: null })
     },
 
     dispatch(command, options) {
