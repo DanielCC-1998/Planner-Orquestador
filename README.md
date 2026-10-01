@@ -877,8 +877,15 @@ ReportService (application)
   4. task details (if descriptions go in their own section);
   5. task status (with the “Status” option): a bar by number of tasks, lanes with every task by status, and the net changes of each sprint ([rules](#sprints));
   6. team and workload;
-  7. shared subtasks appendix;
+  7. shared subtasks appendix (each subtask with the tasks that need it below it);
   8. terms.
+- **Page breaks.** Rules of `reportCss.ts`, so no section is cut in an odd place:
+  - the summary, the task status and the team start on a new page; the breakdown and the task details follow the previous section;
+  - the appendix and the terms stay after the previous section only if all of them fit there; otherwise they start on a new page;
+  - a page never ends with a title or an introduction alone, a task without its inline description, or a parent without its first subtask;
+  - a subtotal or the total never opens a page without the rows it adds up, and table heads repeat on every page;
+  - each paragraph of the terms (blank lines separate them) is kept whole;
+  - a status lane that continues on another page repeats its head there, and a top-level task never leaves its subtasks.
 - **Dates.** “Today” and the sprints use the local date of the computer (`Clock.localDate`), so a change made at 00:30 belongs to that day.
 - **Tags.** With the “Tags” option, chips in the colors of `shared/tagPalette.ts` (the same as in the app) follow the task titles in the breakdown, the task details and the status section.
 - **Language.** The export options carry the language; texts, number and date formats, the footer and the file name (`… - quote 2026-09-30.pdf` / `… - presupuesto 2026-09-30.pdf`) follow it. The model only carries raw data (an untitled task has an empty title); the renderer adds the localized placeholders.

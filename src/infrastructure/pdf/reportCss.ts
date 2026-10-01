@@ -25,6 +25,8 @@ body {
 section { break-before: page; }
 section.flow { break-before: auto; margin-top: 18pt; }
 section:first-of-type { break-before: auto; }
+/* Stays after the previous section only if all of it fits there; otherwise it starts on a new page. */
+section.together { break-inside: avoid; }
 h2 {
   font-size: 13.5pt;
   font-weight: 650;
@@ -35,6 +37,8 @@ h2 {
 }
 h3 { font-size: 10.5pt; margin: 14pt 0 6pt; break-after: avoid; }
 p { margin: 0 0 6pt; }
+/* Introductions stay with what they introduce: a page never ends with a title or its intro alone. */
+.lead { break-after: avoid; }
 .muted { color: var(--muted); }
 .small { font-size: 8pt; }
 .note {
@@ -47,6 +51,7 @@ p { margin: 0 0 6pt; }
 }
 .note.shared { border-left-color: var(--shared); }
 .pre { white-space: pre-wrap; }
+.clause { margin-bottom: 9pt; break-inside: avoid; }
 
 /* Cover */
 .cover { display: flex; flex-direction: column; min-height: var(--cover-height); }
@@ -78,6 +83,10 @@ p { margin: 0 0 6pt; }
 table { width: 100%; border-collapse: collapse; }
 thead { display: table-header-group; }
 tr { break-inside: avoid; }
+/* A page never ends with a task without its description, or a parent without its first subtask;
+   subtotals and the total never open a page without the rows they add up. */
+tr.keep { break-after: avoid; }
+tr.subtotal, tr.grand { break-before: avoid; }
 th {
   text-align: left;
   font-size: 7.5pt;
@@ -140,7 +149,7 @@ tr.desc-row.level-1 td { background: var(--soft); }
 .details .chips { margin: 2pt 0 0 -3pt; }
 
 /* Long titles without spaces must wrap instead of pushing the table off the page. */
-td.title, .details header .dtitle, .lane li { overflow-wrap: anywhere; }
+td.title, .details header .dtitle, .lane .item { overflow-wrap: anywhere; }
 
 /* Tag chips (colors inline, from the shared palette) */
 .chip {
@@ -161,33 +170,39 @@ td.title, .details header .dtitle, .lane li { overflow-wrap: anywhere; }
 
 /* Task status: colors of the PDF (it does not use the app theme) */
 .pill { display: inline-block; font-size: 7.2pt; font-weight: 650; padding: 0.5pt 5pt; border-radius: 7pt; white-space: nowrap; }
-.pill.todo, .lane.todo h3 { background: #eef0f3; color: #374151; }
-.pill.in_progress, .lane.in_progress h3 { background: #dbeafe; color: #1d4ed8; }
-.pill.review, .lane.review h3 { background: #f3e8ff; color: #7e22ce; }
-.pill.done, .lane.done h3 { background: #dcfce7; color: #15803d; }
+.pill.todo, .lane.todo .lane-head { background: #eef0f3; color: #374151; }
+.pill.in_progress, .lane.in_progress .lane-head { background: #dbeafe; color: #1d4ed8; }
+.pill.review, .lane.review .lane-head { background: #f3e8ff; color: #7e22ce; }
+.pill.done, .lane.done .lane-head { background: #dcfce7; color: #15803d; }
 .dot { display: inline-block; width: 7pt; height: 7pt; border-radius: 50%; margin-right: 4pt; vertical-align: -0.5pt; }
 .dot.todo, .stack i.todo { background: #9ca3af; }
 .dot.in_progress, .stack i.in_progress { background: #2563eb; }
 .dot.review, .stack i.review { background: #9333ea; }
 .dot.done, .stack i.done { background: #16a34a; }
-.stack { display: flex; height: 9pt; border-radius: 5pt; overflow: hidden; background: var(--soft); margin: 6pt 0 5pt; }
+.stack { display: flex; height: 9pt; border-radius: 5pt; overflow: hidden; background: var(--soft); margin: 6pt 0 5pt; break-after: avoid; }
 .stack i { display: block; height: 100%; }
-.legend { display: flex; flex-wrap: wrap; gap: 3pt 14pt; font-size: 8pt; color: var(--ink-2); margin-bottom: 4pt; }
-.lane { margin-top: 10pt; }
-.lane h3 {
+.legend { display: flex; flex-wrap: wrap; gap: 3pt 14pt; font-size: 8pt; color: var(--ink-2); margin-bottom: 4pt; break-after: avoid; }
+/* Each lane is a table whose head repeats on every page the list continues on. */
+table.lane { margin-top: 10pt; }
+table.lane th { padding: 0 0 4pt; border: none; }
+table.lane td { padding: 0; border: none; }
+table.lane tr { break-inside: auto; }
+.lane-head {
   display: flex;
   align-items: center;
   font-size: 8.4pt;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .06em;
-  margin: 0 0 4pt;
   padding: 3pt 7pt;
   border-radius: 4pt;
 }
 .lane ul { list-style: none; margin: 0; padding: 0 2pt; column-count: 3; column-gap: 14pt; }
-.lane li { break-inside: avoid; font-size: 8.2pt; line-height: 1.35; padding: 1.5pt 0; }
-.lane li .lcode { color: var(--muted); font-size: 7.6pt; margin-right: 4pt; }
-.lane li.parent .ltitle { font-weight: 650; }
+/* One item per top-level task with its subtasks: a group never splits between columns or pages. */
+.lane li { break-inside: avoid; }
+.lane .item { font-size: 8.2pt; line-height: 1.35; padding: 1.5pt 0; }
+.lane .item .lcode { color: var(--muted); font-size: 7.6pt; margin-right: 4pt; }
+.lane .item.parent .ltitle { font-weight: 650; }
 .lane .empty { font-size: 8pt; color: var(--muted); font-style: italic; padding: 0 2pt; margin: 0; }
 
 /* Progress by sprint */

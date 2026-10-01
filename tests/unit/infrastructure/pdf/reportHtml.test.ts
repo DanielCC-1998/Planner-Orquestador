@@ -4,6 +4,7 @@ import { apply, LANGUAGES, type Language, type ProjectState } from '@domain'
 import { loginSignupScenario, run, testContext } from '@tests/support/builders'
 import { escapeHtml, renderDescriptionHtml } from '@infrastructure/pdf/descriptionHtml'
 import { footerTemplate, renderReportHtml } from '@infrastructure/pdf/reportHtml'
+import { reportCss } from '@infrastructure/pdf/reportCss'
 import { reportFileName } from '@infrastructure/pdf/reportText'
 
 const NOW = '2026-09-30T10:00:00.000Z'
@@ -202,9 +203,11 @@ describe('descriptions in the PDF', () => {
     patch: { description: 'Sign-in form.\n- Client-side validation\n- Clear <error> messages' }
   }).state
   const titleOf = (id: string) => state.tasks.get(id)!.title
-  // Only the <body>: the embedded CSS also mentions the classes and the section.
+  // Only the <body>: the embedded CSS also mentions the classes and the section. Without the appendix,
+  // whose rows list below each subtask the tasks that need it, the same way as the descriptions.
   const html = (language: Language, descriptions: 'none' | 'inline' | 'section', s = described) => {
-    const doc = renderReportHtml(buildReportModel(s, optionsIn(language, { descriptions }), EMPTY_ISSUER, { now: NOW }))
+    const sections = { ...DEFAULT_REPORT_OPTIONS.sections, shared: false }
+    const doc = renderReportHtml(buildReportModel(s, optionsIn(language, { descriptions, sections }), EMPTY_ISSUER, { now: NOW }))
     return doc.slice(doc.indexOf('<body>'))
   }
 
@@ -227,7 +230,7 @@ describe('descriptions in the PDF', () => {
 
       it('under each task of the breakdown', () => {
         const out = html(language, 'inline')
-        expect(out).toContain('<tr class="has-desc">')
+        expect(out).toContain('<tr class="has-desc keep">')
         expect(out).toContain('class="desc-row"')
         expect(out).toContain('Sign-in form.')
         expect(out).not.toContain(title)
@@ -304,7 +307,7 @@ describe('"Task status" section and tags in the PDF', () => {
         const html = body(language, { status: true })
         for (const text of TEXTS[language]) expect(html).toContain(text)
         expect(html).toContain('<span class="dir backward">▼</span><span class="pill done">')
-        expect(html).toContain('<div class="lane review">')
+        expect(html).toContain('<table class="lane review">')
       })
 
       it('without it there is no section', () => {
@@ -325,5 +328,58 @@ describe('"Task status" section and tags in the PDF', () => {
     const off = run(state, { type: 'project.update', patch: { sprints: null } }).state
     const doc = renderReportHtml(buildReportModel(off, optionsIn('en', { columns: { ...DEFAULT_REPORT_OPTIONS.columns, status: true } }), EMPTY_ISSUER, { now: NOW }))
     expect(doc).toContain('This project does not work in sprints.')
+  })
+})
+
+describe('page breaks of the PDF', () => {
+  const { state, ids } = loginSignupScenario()
+  const body = (s: ProjectState, extra: Partial<ReportOptions> = {}) => {
+    const doc = renderReportHtml(buildReportModel(s, optionsIn('en', extra), EMPTY_ISSUER, { now: NOW, localDate: (iso) => iso.slice(0, 10) }))
+    return doc.slice(doc.indexOf('<body>'))
+  }
+  const withTerms = (terms: string) =>
+    run(state, { type: 'project.update', patch: { quote: { number: '', date: null, validityDays: 30, terms } } }).state
+
+  it('the terms go in one block per clause (blank lines separate them), with their line breaks and indents', () => {
+    const html = body(withTerms('1. Payment.\n   - 30 % upfront\n\n \n2. Warranty.\r\n\r\nAccepting the quote accepts these terms.  \n\n'))
+    const clauses = [...html.matchAll(/<p class="pre clause">([^]*?)<\/p>/g)].map((m) => m[1])
+    expect(clauses).toEqual(['1. Payment.\n   - 30 % upfront', '2. Warranty.', 'Accepting the quote accepts these terms.'])
+    expect(body(withTerms(' \n\n '))).not.toContain('<h2>Terms</h2>')
+  })
+
+  it('the appendix and the terms only stay after the previous section if all of them fit', () => {
+    const html = body(withTerms('Payment within 30 days'))
+    expect(html).toContain('<section class="flow together">\n  <h2>Appendix: shared subtasks</h2>')
+    expect(html).toContain('<section class="flow together">\n  <h2>Terms</h2>')
+    expect(reportCss('#000000')).toContain('section.together { break-inside: avoid; }')
+  })
+
+  it('a task keeps its description, a parent its first subtask and a subtotal the rows it adds up', () => {
+    const described = run(state, { type: 'task.update', id: ids.login, patch: { description: 'Sign-in story.' } }).state
+    const html = body(described, { descriptions: 'inline' })
+    expect(html).toContain('<tr class="level-1 parent has-desc keep">')
+    expect(html).toContain('<tr class="desc-row level-1 keep">')
+    expect(html).toContain('<tr class="level-1 parent keep">')
+    // Without its subtasks in the table a parent is a row like any other.
+    expect(body(described, { maxDepth: 1 })).toContain('<tr class="level-1 parent">')
+    const css = reportCss('#000000')
+    expect(css).toContain('tr.keep { break-after: avoid; }')
+    expect(css).toContain('tr.subtotal, tr.grand { break-before: avoid; }')
+  })
+
+  it('the tasks that need a shared subtask go below it, across the appendix table', () => {
+    expect(body(state)).toContain('<div class="desc"><b>Needed by:</b> 1 Login · 2 Sign-up</div>')
+  })
+
+  it('each lane repeats its head on every page, and a top-level task never leaves its subtasks', () => {
+    const extra = run(state, { type: 'task.create', parentId: ids.signup, fields: { title: 'Captcha' } }).state
+    const html = body(extra, { columns: { ...DEFAULT_REPORT_OPTIONS.columns, status: true } })
+    const lane = html.slice(html.indexOf('<table class="lane todo">'), html.indexOf('<table class="lane in_progress">'))
+    expect(lane).toContain('<thead><tr><th><div class="lane-head"><span class="dot todo"></span>To do · 6</div></th></tr></thead>')
+    const groups = [...lane.matchAll(/<li>([^]*?)<\/li>/g)].map((m) => [...m[1]!.matchAll(/class="lcode">([^<]+)</g)].map((c) => c[1]))
+    expect(groups).toEqual([
+      ['1', '1.1', '1.2'],
+      ['2', '2.2', '2.3']
+    ])
   })
 })

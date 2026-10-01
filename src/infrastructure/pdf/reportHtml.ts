@@ -214,15 +214,17 @@ function breakdownSection(model: ReportModel): string {
       const { pad } = leadCells(row)
       if (row.kind === 'task') {
         const inlineDesc = model.options.descriptions === 'inline' && row.description !== ''
-        const cls = [row.depth === 1 ? 'level-1' : '', row.isParent ? 'parent' : '', inlineDesc ? 'has-desc' : '']
+        // A parent whose subtasks are listed: its amounts are theirs, and it stays with the first one.
+        const own = row.isParent && row.collapsedCount === 0
+        // "keep": the page does not end after this row (a task without its description, a parent without its first subtask).
+        const cls = [row.depth === 1 ? 'level-1' : '', row.isParent ? 'parent' : '', inlineDesc ? 'has-desc' : '', inlineDesc || own ? 'keep' : '']
           .filter(Boolean)
           .join(' ')
         const collapsed =
           row.collapsedCount > 0 ? ` <span class="collapsed">${e(text.breakdown.includesSubtasks(row.collapsedCount))}</span>` : ''
-        const own = row.isParent && row.collapsedCount === 0
         const descRow = inlineDesc
           ? `
-<tr class="desc-row${row.depth === 1 ? ' level-1' : ''}"><td></td><td colspan="${columnCount - 1}" style="padding-left:${6 + pad}pt"><div class="desc">${renderDescriptionHtml(row.description)}</div></td></tr>`
+<tr class="${['desc-row', row.depth === 1 ? 'level-1' : '', own ? 'keep' : ''].filter(Boolean).join(' ')}"><td></td><td colspan="${columnCount - 1}" style="padding-left:${6 + pad}pt"><div class="desc">${renderDescriptionHtml(row.description)}</div></td></tr>`
           : ''
         return `<tr class="${cls}">
   <td class="code">${e(row.code)}</td>
@@ -301,7 +303,7 @@ function detailsSection(model: ReportModel): string {
   return `
 <section class="flow details">
   <h2>${e(text.details.title)}</h2>
-  <p class="small muted">${e(text.details.intro)}</p>
+  <p class="small muted lead">${e(text.details.intro)}</p>
   ${body}
 </section>`
 }
@@ -379,10 +381,24 @@ function sprintsPart(model: ReportModel, progress: ReportProgress): string {
     blocks.push(sprintTable(model, sprint))
   }
   flush()
+  // The title and the notes stay with the first sprint: they never end a page on their own.
   const firstSprint = progress.sprints.some((s) => s.number > 0)
     ? ''
-    : `<p class="small muted">${t.firstSprintStarts(e(f.date(progress.sprintStart)))}</p>`
-  return `${head}<p class="small muted">${e(t.sprintsIntro)}</p>${firstSprint}${blocks.join('\n')}`
+    : `<p class="small muted${blocks.length > 0 ? ' lead' : ''}">${t.firstSprintStarts(e(f.date(progress.sprintStart)))}</p>`
+  return `${head}<p class="small muted lead">${e(t.sprintsIntro)}</p>${firstSprint}${blocks.join('\n')}`
+}
+
+/** Tasks of a lane grouped by their top-level task (the list is sorted by code): a group is never split. */
+function laneGroups(tasks: readonly ReportLaneTask[]): ReportLaneTask[][] {
+  const groups: ReportLaneTask[][] = []
+  let top: string | null = null
+  for (const task of tasks) {
+    const key = task.code.split('.')[0] ?? ''
+    if (key !== top) groups.push([])
+    groups[groups.length - 1]!.push(task)
+    top = key
+  }
+  return groups
 }
 
 /**
@@ -406,15 +422,15 @@ function progressSection(model: ReportModel): string {
   ).join('')
   const lanes = TASK_STATUSES.map((s) => {
     const tasks = progress.lanes[s]
+    const item = (task: ReportLaneTask) =>
+      `<div class="item${task.isParent ? ' parent' : ''}"><span class="lcode">${e(task.code)}</span><span class="ltitle">${e(task.title)}</span>${chips(model, task.tags)}</div>`
     const list = tasks.length
-      ? `<ul>${tasks
-          .map(
-            (task) =>
-              `<li${task.isParent ? ' class="parent"' : ''}><span class="lcode">${e(task.code)}</span><span class="ltitle">${e(task.title)}</span>${chips(model, task.tags)}</li>`
-          )
+      ? `<ul>${laneGroups(tasks)
+          .map((group) => `<li>${group.map(item).join('')}</li>`)
           .join('')}</ul>`
       : `<p class="empty">${e(t.emptyLane)}</p>`
-    return `<div class="lane ${s}"><h3><span class="dot ${s}"></span>${e(labels[s])} · ${f.number(tasks.length)}</h3>${list}</div>`
+    // A table so the head of the lane repeats at the top of every page its list continues on.
+    return `<table class="lane ${s}"><thead><tr><th><div class="lane-head"><span class="dot ${s}"></span>${e(labels[s])} · ${f.number(tasks.length)}</div></th></tr></thead><tbody><tr><td>${list}</td></tr></tbody></table>`
   }).join('\n')
   const settings = progress.sprintSettings
   const rhythm = settings
@@ -423,7 +439,7 @@ function progressSection(model: ReportModel): string {
   return `
 <section class="progress">
   <h2>${e(t.title)}</h2>
-  <p class="small muted">${t.asOf(e(f.date(progress.asOf)))}${rhythm}</p>
+  <p class="small muted lead">${t.asOf(e(f.date(progress.asOf)))}${rhythm}</p>
   <div class="stack">${stack}</div>
   <div class="legend"><span class="muted">${e(t.byCount)}:</span>${legend}</div>
   ${lanes}
@@ -471,28 +487,33 @@ function sharedSection(model: ReportModel, flow: boolean): string {
   const { f, text } = localeOf(model)
   const c = model.options.columns
   if (model.shared.length === 0) return ''
+  const columnCount = 3 + (c.hours ? 2 : 0) + (c.cost ? 2 : 0)
+  // The tasks that need each subtask go below it, across the table, like the descriptions of the breakdown.
   const body = model.shared
     .map(
-      (s) => `<tr>
+      (s) => `<tr class="keep has-desc">
   <td class="code">${e(s.code)}</td>
-  <td>${e(s.title)}</td>
-  <td>${s.parents.map((p) => `${e(p.code)} ${e(p.title)}`).join('<br>')}</td>
+  <td class="title">${e(s.title)}</td>
   <td class="num">${f.number(s.occurrences, 0)}</td>
   ${c.hours ? `<td class="num">${f.hours(s.minutes)}</td>` : ''}
   ${c.cost ? `<td class="num">${money(model, f, s.costCents)}</td>` : ''}
   ${c.hours ? `<td class="num">${f.hours(s.savedMinutes)}</td>` : ''}
   ${c.cost ? `<td class="num">${money(model, f, s.savedCents)}</td>` : ''}
-</tr>`
+</tr>
+<tr class="desc-row"><td></td><td colspan="${columnCount - 1}"><div class="desc"><b>${e(text.columns.neededBy)}:</b> ${s.parents
+        .map((p) => `${e(p.code)} ${e(p.title)}`)
+        .join(' · ')}</div></td></tr>`
     )
     .join('\n')
   const s = model.summary
+  // 'together': it stays on the page only if all of it fits; otherwise it starts on the next one.
   return `
-<section class="${flow ? 'flow' : ''}">
+<section class="${flow ? 'flow together' : 'together'}">
   <h2>${e(text.shared.title)}</h2>
-  <p>${e(text.shared.intro)}</p>
+  <p class="lead">${e(text.shared.intro)}</p>
   <table>
     <thead><tr>
-      <th>${e(text.columns.wbs)}</th><th>${e(text.columns.subtask)}</th><th>${e(text.columns.neededBy)}</th><th class="num">${e(text.columns.occurrences)}</th>
+      <th>${e(text.columns.wbs)}</th><th>${e(text.columns.subtask)}</th><th class="num">${e(text.columns.occurrences)}</th>
       ${c.hours ? `<th class="num">${e(text.columns.hours)}</th>` : ''}
       ${c.cost ? `<th class="num">${e(text.columns.amount)}</th>` : ''}
       ${c.hours ? `<th class="num">${e(text.columns.savedHours)}</th>` : ''}
@@ -500,7 +521,7 @@ function sharedSection(model: ReportModel, flow: boolean): string {
     </tr></thead>
     <tbody>
 ${body}
-      <tr class="grand"><td colspan="${4 + (c.hours ? 1 : 0) + (c.cost ? 1 : 0)}">${e(text.shared.totalSaved)}</td>
+      <tr class="grand"><td colspan="${3 + (c.hours ? 1 : 0) + (c.cost ? 1 : 0)}">${e(text.shared.totalSaved)}</td>
       ${c.hours ? `<td class="num">${f.hours(s.savingsMinutes)}</td>` : ''}
       ${c.cost ? `<td class="num">${money(model, f, s.savingsCents)}</td>` : ''}</tr>
     </tbody>
@@ -508,13 +529,24 @@ ${body}
 </section>`
 }
 
+/** Paragraphs of the terms (blank lines separate them), with their own line breaks and indents. */
+function termsParagraphs(terms: string): string[] {
+  return terms
+    .split(/\r?\n(?:[ \t]*\r?\n)+/)
+    .map((paragraph) => paragraph.replace(/^(?:[ \t]*\r?\n)+/, '').trimEnd())
+    .filter((paragraph) => paragraph.trim() !== '')
+}
+
 function termsSection(model: ReportModel, flow: boolean): string {
-  if (!model.project.terms.trim()) return ''
+  const paragraphs = termsParagraphs(model.project.terms)
+  if (paragraphs.length === 0) return ''
   const { text } = localeOf(model)
+  // One block per clause, never split between two pages. Like the appendix, the terms only stay on the
+  // page if all of them fit; otherwise they start on the next one (and longer ones break between clauses).
   return `
-<section class="${flow ? 'flow' : ''}">
+<section class="${flow ? 'flow together' : 'together'}">
   <h2>${e(text.terms.title)}</h2>
-  <p class="pre">${e(model.project.terms)}</p>
+  ${paragraphs.map((paragraph) => `<p class="pre clause">${e(paragraph)}</p>`).join('\n  ')}
 </section>`
 }
 
