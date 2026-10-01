@@ -1,0 +1,10 @@
+{
+  // React user interface (it runs in the Electron renderer, without access to Node).
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"]
+  },
+  "include": ["src/presentation/**/*.ts", "src/presentation/**/*.tsx"]
+}

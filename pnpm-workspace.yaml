@@ -1,0 +1,12 @@
+# pnpm 11: the configuration lives here (the "pnpm" field of package.json is no longer read).
+# Single-package project: the "packages" key is not needed.
+allowBuilds:
+  # Only used by the Squirrel target of electron-builder; this project uses nsis + portable.
+  electron-winstaller: false
+  esbuild: true
+minimumReleaseAgeExclude:
+  - '@vitest/mocker@5.0.3'
+  - '@vitest/spy@5.0.3'
+  - electron@44.5.1
+  - lucide-react@1.49.0
+  - vitest@5.0.3

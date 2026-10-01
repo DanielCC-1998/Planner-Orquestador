@@ -1,0 +1,56 @@
+/** Texts of the keyboard shortcuts dialog. Key names come from `common.keys`. */
+export const en = {
+  title: 'Keyboard shortcuts',
+  createAndEdit: 'Create and edit',
+  structure: 'Structure',
+  navigate: 'Navigate',
+  newTaskBelow: 'New task below (while typing a title: confirms it and creates the next one)',
+  newSubtask: 'New subtask',
+  rename: 'Rename (or double-click the title)',
+  cancelEdit: 'Cancel editing (a new task without a title is discarded)',
+  delete: 'Delete / remove from here if it is a reference',
+  duplicate: 'Duplicate with its subtasks',
+  indent: 'Make it a subtask of the previous task',
+  outdent: 'Move up one level',
+  moveUpDown: 'Move up / down',
+  copyToShare: 'Copy task to share',
+  pasteAsShared: 'Paste as shared subtask',
+  moveBetweenTasks: (shift: string) => `Move between tasks (${shift}: select several)`,
+  collapseExpand: 'Collapse / expand',
+  focus: 'Focus on the task (show only its branch)',
+  exitFocus: 'Exit focus',
+  toggleDetail: 'Open / close the detail panel',
+  toggleDescriptions: 'Show / hide the descriptions',
+  goToTask: 'Go to any task',
+  undoRedo: 'Undo / redo',
+  zoom: 'Zoom'
+}
+
+// i18n:es-start
+export const es: typeof en = {
+  title: 'Atajos de teclado',
+  createAndEdit: 'Crear y editar',
+  structure: 'Estructura',
+  navigate: 'Navegar',
+  newTaskBelow: 'Nueva tarea debajo (al escribir un título: confirma y crea la siguiente)',
+  newSubtask: 'Nueva subtarea',
+  rename: 'Renombrar (o doble clic en el título)',
+  cancelEdit: 'Cancelar edición (una tarea nueva sin título se descarta)',
+  delete: 'Eliminar / quitar de aquí si es una referencia',
+  duplicate: 'Duplicar con sus subtareas',
+  indent: 'Convertir en subtarea de la anterior',
+  outdent: 'Subir un nivel',
+  moveUpDown: 'Mover arriba / abajo',
+  copyToShare: 'Copiar tarea para compartir',
+  pasteAsShared: 'Pegar como subtarea compartida',
+  moveBetweenTasks: (shift) => `Moverse entre tareas (${shift}: seleccionar varias)`,
+  collapseExpand: 'Plegar / desplegar',
+  focus: 'Enfocar la tarea (ver solo su rama)',
+  exitFocus: 'Volver del enfoque',
+  toggleDetail: 'Abrir / cerrar el panel de detalle',
+  toggleDescriptions: 'Mostrar / ocultar las descripciones',
+  goToTask: 'Ir a cualquier tarea',
+  undoRedo: 'Deshacer / rehacer',
+  zoom: 'Zoom'
+}
+// i18n:es-end

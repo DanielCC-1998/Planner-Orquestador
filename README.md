@@ -1,0 +1,863 @@
+# Planner
+
+A desktop project planner for Windows. Create tasks and subtasks with no depth limit, estimate them Jira-style and export a PDF quote ready to present to your client.
+
+A subtask can belong to several tasks at once, and hours, cost and duration still count it **only once**. The interface and the PDF are available in **English and Spanish**.
+
+![Task tree of a project](docs/images/tree.png)
+
+## Contents
+
+1. [Features](#features)
+2. [Screenshots](#screenshots)
+3. [Installation](#installation)
+4. [User guide](#user-guide)
+5. [Development](#development)
+6. [Building the .exe](#building-the-exe)
+7. [Architecture](#architecture)
+8. [Internationalization](#internationalization)
+9. [Domain model and calculations](#domain-model-and-calculations)
+10. [Persistence](#persistence)
+11. [IPC and security](#ipc-and-security)
+12. [PDF generation](#pdf-generation)
+13. [Tests](#tests)
+14. [Adding a feature](#adding-a-feature)
+15. [Troubleshooting](#troubleshooting)
+16. [License](#license)
+
+---
+
+## Features
+
+| | |
+|---|---|
+| **Projects as cards** | Each project has a name, client, color, its own currency (EUR, USD…), a default rate, contingency, tax and working days. From the card you can duplicate it, archive it, export or import it as JSON and move it to the trash. |
+| **Tasks with no depth limit** | A virtualized tree with WBS codes (1, 1.1, 1.1.1…) that stays smooth with thousands of tasks. It is edited with the keyboard, like an outliner. |
+| **Task data** | Status, priority, assignee, story points, estimated hours, own rate and description. Hours accept several formats: `1.5`, `90m`, `1h 30m` or `2d`. |
+| **Shared subtasks** | A subtask can hang from several tasks and still counts once. The app shows how much double counting was avoided. |
+| **Team and workload** | Each person has a role, a rate and working hours per day. The workload view splits the work per person and works out the project duration and end date. |
+| **Kanban board** | One column per status. Drag a card to change the status of its task. |
+| **PDF quote** | It includes these sections:<ul><li>Cover</li><li>Financial summary</li><li>WBS breakdown with subtotals</li><li>Team</li><li>Shared subtasks appendix</li><li>Task details (descriptions)</li><li>Terms</li></ul>The table adds up exactly to the total. |
+| **English and Spanish** | Switch the interface language at any time; choose the PDF language when exporting. Numbers and dates follow the language (`€7,327.16` / `7.327,16 €`). |
+| **Light / dark mode** | Light, dark or follow the system. The PDF is always light, ready to print. |
+| **Undo / redo** | Up to 100 steps per project. |
+| **Local and safe data** | No server and no account. Each project is a JSON file written atomically, plus a `.bak` copy, daily backups and automatic recovery. |
+
+## Screenshots
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/projects.png" alt="Projects screen"><br><sub>Projects as cards, each with its own currency and totals.</sub></td>
+<td width="50%"><img src="docs/images/detail.png" alt="Task detail panel"><br><sub>Detail panel of a subtask shared by three tasks.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/images/descriptions.png" alt="Descriptions shown in the tree"><br><sub>Descriptions shown under each task (“Descriptions” button or Alt+D).</sub></td>
+<td><img src="docs/images/board.png" alt="Kanban board"><br><sub>Kanban board by status.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/images/workload.png" alt="Workload per person"><br><sub>Workload per person, estimated duration and end date.</sub></td>
+<td><img src="docs/images/dark-mode.png" alt="Dark mode"><br><sub>Dark mode.</sub></td>
+</tr>
+</table>
+
+The screenshots and the [sample PDF](docs/sample-quote.pdf) are regenerated with `pnpm docs:screenshots` (see [scripts](#scripts)).
+
+---
+
+## Installation
+
+**Requirements:** Windows 10 or 11, 64-bit. Nothing else needs to be installed.
+
+There are two executables. They are built into `release/` with `pnpm dist:win` (see [Building the .exe](#building-the-exe)).
+
+| File | What it is | Where it stores the data |
+|---|---|---|
+| `Planner-1.0.0-setup.exe` | Installer. Lets you choose the folder, creates desktop and Start menu shortcuts, and is uninstalled from “Apps”. | `%APPDATA%\Planner\data` |
+| `Planner-1.0.0-portable.exe` | A single `.exe` that needs no installation; you can carry it on a USB drive, for example. | `PlannerData` folder next to the `.exe`. If that folder is not writable, `%APPDATA%\Planner\data`. |
+
+**SmartScreen warning.** The executables are not signed, so the first time Windows may show “Windows protected your PC”. Click “More info” and then “Run anyway”.
+
+**Where is my data?** Go to Settings (⚙) → Data → “Open folder”. The contents of that folder are explained in [Persistence](#persistence).
+
+---
+
+## User guide
+
+### Projects
+
+- **Create a project.** Click “New project” and enter the name, client and currency. Everything else is set later in “Project settings”:
+  - default rate and working hours per day;
+  - contingency (%) and tax (%);
+  - start date and working days;
+  - quote number, date, validity and terms.
+- **What each card shows:**
+  - tasks, hours, cost, story points and currency;
+  - number of shared subtasks (🔗);
+  - progress and team.
+- **The card's “⋯” menu.** Open, Duplicate, Export PDF…, Export JSON…, Archive / Restore and Delete… (which moves the project to the trash).
+- **“Import”.** Loads a project exported as JSON. If a project with the same id already exists, it is imported as a copy with new ids.
+- **Search and sort.** Search by project or client. Sort by most recent, by name or by cost.
+
+### Tasks and subtasks
+
+- **Create tasks.** Use “New task” or press **Enter** on a task. When you finish a title, Enter creates the next one, **Tab** turns it into a subtask of the previous one and **Shift+Tab** moves it up a level. You can write a whole plan without touching the mouse.
+- **Edit.** Select a task and press **Space** to open the detail panel. It holds the status, priority, assignee, description, hours, rate and story points.
+- **Row menu** (right click or “⋯”):
+  - add a subtask or a task below;
+  - link an existing subtask, or also share the task in another one;
+  - move it elsewhere, indent or outdent, move up or down;
+  - duplicate;
+  - focus on this task (shows only its branch);
+  - copy to share, paste as shared subtask, and remove from here.
+- **Several tasks at once.** Select them with **Shift+↑/↓**. A bar appears to change the status, priority or assignee of all of them.
+- **Filter.** Search by text or WBS code. “Filters” narrows the tree by:
+  - status;
+  - assignee;
+  - warnings: unestimated, unassigned, no rate, shared.
+- **Expand and navigate.** “Expand levels” opens the tree down to the level you choose. **Ctrl+K** jumps to any task.
+- **Delete a task with subtasks.** Two options are offered: delete it with its subtasks, or delete only that task and move its subtasks up a level. Subtasks that also hang from another task are never lost.
+
+**Tree columns:**
+
+| Column | Meaning |
+|---|---|
+| **Own** | Hours of the task itself, without its subtasks. |
+| **Σ Hours / Σ Cost** | What the branch contributes to the total. That is why the rows can be added up (see [calculations](#domain-model-and-calculations)). |
+| **+X h 🔗** | Hours of shared subtasks this branch also needs but that are counted in another branch. |
+
+**Bottom bar:**
+
+- hours (with contingency), story points, total including tax, duration, end date and progress;
+- “−X h not double-counted”, with what was saved by not counting shared subtasks twice;
+- warnings for unestimated or unassigned tasks.
+
+### Shared subtasks
+
+A shared subtask is the same task hanging from several tasks. For example, “Design users table” is needed by “Login”, “Sign-up” and “Payment gateway”.
+
+1. Select the subtask and press **Ctrl+Shift+C** (or “Copy to share”).
+2. Select the other task that also needs it and press **Ctrl+Shift+V** (or “Paste as shared subtask”).
+
+In the tree, each appearance is shown like this:
+
+| Appearance | How it looks | Counts in the totals |
+|---|---|---|
+| **Primary** | Marked with **★**. | Yes, with its hours and cost. |
+| **The others** | References in italics: `↳ Design users table · 🔗3 · see 1.1.1`, with the figures in brackets. | No. |
+
+To count it in another branch, use “Make primary: count here” in the detail panel.
+
+Deleting a reference (“Remove from here” or **Del**) only removes it from that task; the subtask is not deleted.
+
+### Team and rates
+
+- **Team.** In “Team” you add people with a name, role, rate, hours per day and color. You can also import the team of another project.
+- **Rate of each task.** The first one that exists is used, in this order:
+  1. the task's own rate;
+  2. the assignee's rate;
+  3. the project's default rate.
+- **Removing a person.** Their tasks are reassigned to someone else or left unassigned.
+
+### Estimating
+
+- **Hours.** The field accepts several formats:
+  - `1.5` or `1,5` (hours);
+  - `90m` or `90 minutes`;
+  - `1h 30m`, `1h30` or `1:30`;
+  - `2d` or `2 days` (days of the project's hours per day).
+- **Story points.** There are quick buttons (1, 2, 3, 5, 8, 13), and any value can be typed.
+- **Duration.** It comes from each person's workload (see [calculations](#duration-and-end-date)).
+
+### Views
+
+| View | What it is for |
+|---|---|
+| **Tree** | Planning the whole structure (WBS), with totals per branch. |
+| **Board** | Following the status of the leaf tasks or of the top-level tasks. Drag a card to change its status. |
+| **Workload** | Hours, cost and days per person. Whoever needs the most days sets the pace (★). Clicking a row shows their tasks in the tree. |
+
+### Descriptions
+
+- **Where they are written.** In the detail panel, with light formatting:
+  - an empty line separates paragraphs;
+  - lines starting with `- `, `* ` or `• ` form a list;
+  - lines starting with `1. ` form a numbered list;
+  - `**text**` is shown in bold.
+- **Showing them in the tree and the board.** The “Descriptions” button (or **Alt+D**) shows or hides them under each task.
+- **In the PDF.** Chosen when exporting:
+  - do not include them;
+  - under each task of the breakdown;
+  - in a separate “Task details” section (the default).
+
+### Exporting to PDF
+
+Use “Export PDF” inside the project or in the menu of its card. You can choose:
+
+- the **PDF language** (English or Spanish), independently of the interface language;
+- the sections and the columns (hours, amounts, rate, story points, assignee and status);
+- the depth of the breakdown and down to which level subtotals are added;
+- the paper (A4 or Letter) and the orientation;
+- where the descriptions go.
+
+The options, including the language, are remembered per project. The issuer details (name, tax ID, address, email, phone, website and logo) are set once in Settings and appear on the cover and in the footer.
+
+<img src="docs/images/export-pdf.png" alt="PDF export dialog" width="720">
+
+These are three pages of the [sample PDF](docs/sample-quote.pdf):
+
+<table>
+<tr>
+<td width="33%"><img src="docs/images/pdf-cover.png" alt="PDF cover"><br><sub>Cover</sub></td>
+<td width="33%"><img src="docs/images/pdf-summary.png" alt="Summary and breakdown"><br><sub>Summary and breakdown</sub></td>
+<td width="33%"><img src="docs/images/pdf-breakdown.png" alt="Breakdown and task details"><br><sub>Total and “Task details”</sub></td>
+</tr>
+</table>
+
+### Language
+
+- **Interface.** Use the language button in the top bar (the 文A icon), or Settings → Language. The options are English, Español and System. The interface switches immediately.
+- **System.** Follows the Windows display language: Spanish if it is Spanish (or Catalan, Galician or Basque), English otherwise.
+- **Formats.** English uses US formats (`€7,327.16 · 124.3 h · Sep 30, 2026 · 21%`); Spanish uses Spanish formats (`7.327,16 € · 124,3 h · 30 sept 2026 · 21 %`). Numbers can be typed with either decimal separator.
+- **PDF.** Its language is chosen in the export dialog and remembered per project.
+- **Your data is never translated.** Task titles, names and descriptions stay as you wrote them. If the tax name of a project is left empty, the PDF writes “Tax” in English and “IVA” in Spanish.
+- Native date fields change format after restarting the app.
+
+<img src="docs/images/tree-es.png" alt="The same project in Spanish" width="720">
+
+### Theme
+
+The theme button in the top bar (☀ / ☾ / 🖥) opens a menu with three options: Light, Dark or System, which follows the Windows theme. It can also be changed in Settings → Appearance.
+
+### Keyboard shortcuts
+
+Press **F1** (or the ⌨ icon) to see them inside the app.
+
+**Create and edit**
+
+| Key | Action |
+|---|---|
+| Enter | New task below (while typing a title: confirm it and create the next one) |
+| Ctrl+Enter | New subtask |
+| F2 | Rename (or double-click the title) |
+| Esc | Cancel editing (a new task without a title is discarded) |
+| Del | Delete, or remove from here if it is a reference |
+| Ctrl+D | Duplicate with its subtasks |
+
+**Structure**
+
+| Key | Action |
+|---|---|
+| Tab / Shift+Tab | Make it a subtask of the previous task / move it up a level |
+| Alt+↑ / Alt+↓ | Move up / down |
+| Ctrl+Shift+C | Copy the task to share it |
+| Ctrl+Shift+V | Paste as shared subtask |
+
+**Navigate**
+
+| Key | Action |
+|---|---|
+| ↑ / ↓ | Move between tasks (with Shift: select several) |
+| ← / → | Collapse / expand |
+| Alt+→ / Alt+← | Focus the task (show only its branch) / go back |
+| Space | Open or close the detail panel |
+| Alt+D | Show or hide descriptions |
+| Ctrl+K | Go to any task |
+| Ctrl+Z / Ctrl+Y | Undo / redo |
+| Ctrl++ / Ctrl+− / Ctrl+0 | Zoom |
+
+---
+
+## Development
+
+### Requirements
+
+- **Node.js 24.**
+- **pnpm 11.** Its configuration lives in `pnpm-workspace.yaml`:
+  - `allowBuilds` says which dependencies may run install scripts;
+  - `minimumReleaseAgeExclude` lists the exceptions to the minimum release age.
+- **Windows,** to build the `.exe` files. The app itself can be developed on any system.
+
+### Getting started
+
+```bash
+pnpm install
+```
+
+```bash
+pnpm dev
+```
+
+- `pnpm install` installs the dependencies and downloads the Electron binary (`postinstall` script).
+- `pnpm dev` opens the app with hot reload of the interface. In development the data is stored in `.planner-data/` (ignored by git). **F12** opens the developer tools.
+
+To try a large project:
+
+```bash
+pnpm seed:big
+```
+
+### Scripts
+
+| Script | What it does |
+|---|---|
+| `pnpm dev` | Development with hot reload (electron-vite). |
+| `pnpm build` | Builds the main process, the preload and the interface into `out/`. |
+| `pnpm preview` | Builds and starts the unpackaged production version. |
+| `pnpm typecheck` | Type checks each layer separately ([see tsconfig](#type-checking-per-layer)). |
+| `pnpm lint` | ESLint, including the [dependency rules between layers](#dependency-rules). |
+| `pnpm test` | Unit and property tests (Vitest + fast-check). |
+| `pnpm test:watch` | The same in watch mode. |
+| `pnpm test:e2e` | Builds the app and runs the end-to-end tests on the real app (Playwright + Electron). |
+| `pnpm dist:win` | Builds the app and creates the installer and the portable exe in `release/`. |
+| `pnpm seed:big` | Creates a 5,000-task project in `.planner-data/` to test performance. |
+| `pnpm icon` | Regenerates `build/icon.png` and `src/presentation/assets/logo.svg` from `build/icon.svg`. |
+| `pnpm docs:screenshots` | Builds the app and regenerates the README screenshots (`docs/images/`) and the sample PDF. |
+
+### Environment variables
+
+| Variable | Effect |
+|---|---|
+| `PLANNER_DATA_DIR` | Data folder. It takes precedence over everything else. |
+| `PLANNER_E2E_DIR` | For tests: save dialogs are not shown and files are written to this folder. |
+| `PLANNER_E2E_OPEN` | For tests: file returned by the open dialog (JSON import). |
+| `ELECTRON_RENDERER_URL` | Set by `pnpm dev`; it points to the Vite server. |
+
+---
+
+## Building the .exe
+
+```bash
+pnpm dist:win
+```
+
+This command runs two steps:
+
+1. `electron-vite build` builds into `out/`:
+
+   | Output | Contents |
+   |---|---|
+   | `out/main/index.js` | Main process |
+   | `out/preload/index.js` | Preload |
+   | `out/renderer/` | Interface |
+
+2. `electron-builder --win --x64` packages it according to `electron-builder.yml` and writes to `release/`:
+   - `Planner-<version>-setup.exe` (NSIS installer);
+   - `Planner-<version>-portable.exe`;
+   - `win-unpacked/`, the unpackaged app, useful for debugging.
+
+Other packaging settings:
+
+- **Version.** The `version` field of `package.json`; it appears in the file names.
+- **Icon.** Edit `build/icon.svg` and run `pnpm icon`. This generates `build/icon.png` (512 px), which electron-builder turns into an `.ico`.
+- **Fuses.** The executable is hardened with Electron *fuses*: no Node mode (`runAsNode`), no `NODE_OPTIONS` or `--inspect`, encrypted cookies, and loading only from `app.asar` with verified integrity. If someone modifies the `.asar`, the app does not start.
+- **Signing.** Disabled (`signExecutable: false`). To sign:
+  1. Set `CSC_LINK` (path to the `.pfx` certificate) and `CSC_KEY_PASSWORD`.
+  2. Remove that line from `electron-builder.yml`.
+
+  Once the executable is signed, SmartScreen stops warning as soon as the certificate gains reputation.
+
+---
+
+## Architecture
+
+Hexagonal architecture (ports and adapters) on top of Electron's two processes:
+
+```mermaid
+flowchart LR
+  subgraph R["Interface process · sandbox, no Node"]
+    UI["presentation<br/>React + zustand"]
+  end
+  subgraph M["Main process · Node"]
+    IPC["infrastructure/ipc<br/>zod validation"]
+    APP["application<br/>use cases + ports"]
+    DOM["domain<br/>pure rules"]
+    ADP["infrastructure<br/>JSON · PDF · clock · ids"]
+  end
+  SH["shared<br/>IPC contract · formatting · i18n"]
+  UI -- "window.planner.invoke" --> IPC
+  IPC --> APP --> DOM
+  ADP -. "implements the ports" .-> APP
+  UI -. "reads and recalculates" .-> DOM
+  UI --- SH
+  IPC --- SH
+```
+
+| Layer | Folder | Responsibility |
+|---|---|---|
+| **Domain** | `src/domain` | Entities, rules, validations, task graph, command reducer and calculations. Plain TypeScript only: no Node, DOM, Electron or libraries. |
+| **Application** | `src/application` | Use cases: sessions with undo/redo, catalog, reports and settings. It defines the **ports** (interfaces) for what it needs from the outside. |
+| **Infrastructure** | `src/infrastructure` | **Adapters.** Some implement the ports: JSON repository, PDF with Electron, clock and id generator. Others expose the use cases over IPC. The Electron startup and the *composition root* also live here. |
+| **Presentation** | `src/presentation` | React interface. It talks to the main process over IPC and reuses the pure domain functions to recalculate totals. |
+| **Shared** | `src/shared` | What the main process and the interface share: the typed IPC contract, how to apply a delta, number/date formatting per language, status and priority labels. |
+
+### Dependency rules
+
+`eslint.config.mjs` checks them on every `pnpm lint`. They cover both the aliases (`@application/...`) and relative paths (`../application/...`).
+
+| Layer | May import | May not import |
+|---|---|---|
+| `domain` | — | Any other layer, nor Node, Electron, React or zod. |
+| `application` | `domain` | `infrastructure`, `presentation`, `shared`, Node, Electron, React or zod. The outside world comes in through ports. |
+| `shared` | `domain`, and `application` only as `import type` | `infrastructure`, `presentation`, Node, Electron or React. |
+| `infrastructure` | `domain`, `application`, `shared`, Node and Electron | `presentation` or React. |
+| `infrastructure/electron/preload` | Only `shared` and `electron` | Everything else. |
+| `presentation` | `domain`, `shared`, and `application` only as `import type` | `infrastructure`, Node, Electron or zod. |
+
+The tests (`tests/`) are exempt from these rules: they set up scenarios across layers.
+
+Each layer is imported through its alias:
+
+- `@domain` and `@application`, each with its `index.ts` barrel;
+- `@infrastructure/*`, `@presentation/*`, `@shared/*` and `@tests/*`.
+
+Relative paths are used within a layer.
+
+### Type checking per layer
+
+`pnpm typecheck` runs four compilations, each with only the types of its environment:
+
+| tsconfig | Includes | Environment |
+|---|---|---|
+| `tsconfig.core.json` | `domain`, `application`, `shared` | ES2023 without Node or DOM: if someone uses `fs` or `document`, it does not compile. |
+| `tsconfig.node.json` | `infrastructure` and the config files | Node |
+| `tsconfig.web.json` | `presentation` | DOM + Vite |
+| `tsconfig.test.json` | `tests` | Node + DOM |
+
+`tsconfig.json` exists only for the editor.
+
+### Life of a command
+
+This is how, for example, a change of task status travels:
+
+```mermaid
+sequenceDiagram
+  participant UI as presentation<br/>stores/project.ts
+  participant P as preload<br/>window.planner
+  participant H as infrastructure/ipc<br/>registerIpcHandlers
+  participant S as application<br/>ProjectSessions
+  participant D as domain<br/>apply()
+  participant R as infrastructure<br/>JsonProjectRepository
+  UI->>P: invoke('project.command', { id, command })
+  P->>H: ipcRenderer.invoke
+  H->>H: trusted sender + strict zod validation
+  H->>S: execute(id, command)
+  S->>D: apply(state, command, ctx)
+  D-->>S: new immutable state (or a domain error)
+  S->>S: pushes the previous state (undo)
+  S->>R: save(id, state), deferred write 300 ms
+  S-->>H: Delta, only what changed
+  H-->>UI: { ok: true, data: delta }
+  UI->>UI: applyDelta + estimate(), re-render
+  R-->>S: written to disk
+  S-->>UI: project.saveStatus event (saving → saved)
+```
+
+- **A single write path.** The main process is the only one that modifies data. The interface only sends commands.
+- **Immutable state.** Each command produces a new state and shares everything that did not change. Undo is just getting the previous state back, and the delta is computed by comparing references.
+- **The same numbers in the app and in the PDF.** The interface and the PDF compute the totals with the same pure domain function (`estimate`).
+
+### Folder structure
+
+```
+src/
+├─ domain/                      Pure business rules
+│  ├─ common/                   primitives (ids, Result, errors and their reasons) · money · calendar
+│  │                            duration · palette · validation · language (LANGUAGES)
+│  ├─ task/                     Task.ts (entity, statuses, priorities, defaults) · validateTask.ts
+│  ├─ team/                     Member.ts (person, initials) · validateMember.ts
+│  ├─ project/                  Project.ts (ProjectMeta, ProjectState) · validateProject.ts
+│  │                            commands.ts (Command union) · apply.ts (pure reducer)
+│  │                            createProject.ts · projectData.ts (aggregate ↔ plain data)
+│  ├─ graph/                    TaskGraph.ts (immutable acyclic graph) · wbs.ts (1.2.3 codes)
+│  ├─ estimation/               metrics.ts · estimate.ts (totals, contribution, savings, workload, duration)
+│  └─ index.ts                  Public API of the domain
+├─ application/                 Use cases and ports
+│  ├─ ports/                    ProjectRepository · SettingsRepository · ProjectSerializer
+│  │                            PdfRenderer · Clock · IdGenerator
+│  ├─ projects/                 ProjectSessions (sessions, undo/redo, deltas)
+│  │                            ProjectCatalog (create, duplicate, import…) · snapshot.ts (Snapshot, Delta)
+│  ├─ reports/                  ReportModel · buildReportModel (additive table) · ReportService
+│  ├─ settings/                 Settings (types, defaults, language preference) · SettingsService
+│  ├─ errors.ts                 AppError and its reasons
+│  └─ index.ts
+├─ infrastructure/              Adapters
+│  ├─ persistence/json/         codec (format and migrations) · atomicWrite
+│  │                            JsonProjectRepository · JsonSettingsRepository
+│  ├─ persistence/memory/       InMemoryProjectRepository (for tests)
+│  ├─ pdf/                      ElectronPdfRenderer · reportHtml · reportCss · reportText (PDF texts) · descriptionHtml
+│  ├─ i18n/                     mainText (native dialog filters, names of copies)
+│  ├─ system/                   systemClock · cryptoIdGenerator
+│  ├─ validation/               schemas.ts (zod for the files and for the data arriving over IPC)
+│  ├─ ipc/                      registerIpcHandlers · inputSchemas · dialogs
+│  └─ electron/
+│     ├─ main/                  index.ts (startup and window) · container.ts (composition root)
+│     │                         paths (data folder) · language (stored language at startup) · security · theme
+│     └─ preload/               index.ts (window.planner bridge)
+├─ presentation/                React interface
+│  ├─ index.html · main.tsx · styles.css (Tailwind) · assets/
+│  ├─ app/                      App, TopBar, DialogHost
+│  ├─ components/               Reusable components (button, dialog, menu, Rich text…)
+│  ├─ features/                 projects · project · tree · board · workload · detail · summary · dialogs
+│  ├─ i18n/                     useI18n · catalogs per area (catalog/*.ts) · error texts
+│  ├─ stores/                   zustand state: catalog, project, settings, ui, toasts
+│  └─ lib/                      api (typed IPC client) · keys · storage · cn
+└─ shared/
+   ├─ i18n/language.ts          Locales, language names, resolving "System"
+   ├─ ipc/contract.ts           IPC channels with their input and output types
+   ├─ ipc/applyDelta.ts         Applies a Delta to a ProjectState
+   ├─ ipc/errors.ts             Infrastructure error reasons
+   ├─ format.ts                 createFormatter(language): money, hours, dates, inputs
+   └─ labels.ts                 Status and priority names per language
+
+tests/
+├─ support/                     builders (sample scenarios) · arbitraries (fast-check generators)
+├─ unit/                        Unit tests, mirroring src/ (+ i18n/ checks for catalogs and code)
+└─ e2e/                         Playwright on the built app
+
+scripts/                        make-icon · seed-big · docs-screenshots
+build/                          icon.svg / icon.png
+docs/                           Screenshots and sample PDF of this README
+```
+
+---
+
+## Internationalization
+
+The app is fully bilingual. Each layer only knows what it needs:
+
+| Piece | Where | What it does |
+|---|---|---|
+| **Language type** | `domain/common/language.ts` | `LANGUAGES = ['en', 'es']` and `Language`. In the domain so every layer can use the type. |
+| **Preference** | `application/settings/Settings.ts` | `language: 'system' \| 'en' \| 'es'` in the settings (default `'system'`). |
+| **Resolution and locales** | `shared/i18n/language.ts` | `resolveLanguage(preference, systemLocales)`, `LOCALE_OF` (`en-US`, `es-ES`), language names. |
+| **Formatting** | `shared/format.ts` | `createFormatter(language)`: money, numbers, hours, days, dates, relative times, and the parsing of typed numbers. Editable values never have thousands separators, so they read back unchanged. |
+| **Interface texts** | `presentation/i18n/catalog/*.ts` | One catalog per area (`common`, `tree`, `export`…). Each exports `en` and `es: typeof en`: a missing translation does not compile. |
+| **Access from React** | `presentation/i18n/index.ts` | `useI18n()` → `{ language, t, f }`; `getI18n()` for code outside React. |
+| **Errors** | `domain`, `application`, `shared/ipc/errors.ts` | Errors carry a `code`, a `reason` and `params`, plus an English `message` as fallback. The interface translates them (`presentation/i18n/errors.ts`). |
+| **PDF texts** | `infrastructure/pdf/reportText.ts` | The quote in each language; the export options carry the language. |
+| **Main process texts** | `infrastructure/i18n/mainText.ts` | Native dialog filters and the names of copies (“(copy)” / “(copia)”). |
+| **Native controls** | `infrastructure/electron/main/index.ts` | Before startup, the stored language sets Chromium's locale (`--lang`), used by the date fields. |
+
+**Adding a text:** add the key to the `en` object of the area's catalog, then the same key to `es` (the compiler will ask for it), and use it as `t.area.key`. Texts with parameters are functions (`count: (n: number) => …`), which also covers plurals. `**bold**` inside a text is rendered with `<Rich text={…} />`.
+
+**Adding a language:**
+1. Add its code to `LANGUAGES` and a locale and a name in `shared/i18n/language.ts`.
+2. Add its catalogs: the compiler lists every place that is missing (`typeof en` in the interface catalogs, `Record<Language, …>` in `labels.ts`, `reportText.ts` and `mainText.ts`).
+3. Optionally map more system locales to it in `resolveLanguage`.
+
+Two tests keep it that way: `tests/unit/i18n/catalogs.test.ts` (same keys in both languages, no Spanish in the English texts, every error reason translated) and `tests/unit/i18n/no-spanish-in-code.test.ts` (comments and literals of the code are in English; Spanish only inside `// i18n:es-start` … `// i18n:es-end` blocks).
+
+---
+
+## Domain model and calculations
+
+### Units
+
+- **Money:** whole cents. Costs are rounded per task.
+- **Time:** whole minutes.
+- **Percentages:** *basis points* (1% = 100 bps).
+
+That way there are no floating-point errors when adding up.
+
+### Entities
+
+| Entity | Contents |
+|---|---|
+| **ProjectMeta** | Name, client, color, currency, default rate, hours per day, contingency, tax, start, working days, quote details, and whether it is archived. |
+| **Task** | Title, description, status, priority, assignee, story points, estimated minutes and own rate. |
+| **Member** | Name, role, rate, hours per day and color. |
+| **TaskGraph** | Structure of the project: an acyclic directed graph with ordered roots and children. `parents(t)[0]` is the **primary parent** of `t`. |
+
+The `ProjectState` aggregate groups the four entities.
+
+### Commands
+
+Every change is a `Command`. `apply(state, command, ctx)` is a pure function: it returns the new state or a domain error (`INVALID`, `NOT_FOUND`, `CYCLE`, `DUPLICATE`…), with a `reason` the interface translates.
+
+| Command | Effect |
+|---|---|
+| `task.create` | Creates a task, top-level or child, at a position. |
+| `task.update` / `task.bulkUpdate` | Changes fields of one task, or the status, priority or assignee of several. |
+| `task.delete` | `cascade`: the task and the subtasks left without a parent (mark and sweep). `splice`: only the task; its children move up a level. |
+| `task.duplicate` | Deep copy of a branch; the interface sends the localized title of the copy. |
+| `edge.link` / `edge.unlink` | Adds or removes an appearance: that is how subtasks are shared. Rejected if it would create a cycle. |
+| `edge.setPrimary` | Changes the primary parent, i.e. where it is counted. |
+| `edge.move` | Moves an appearance: indent, outdent, reorder or drag. |
+| `member.add` / `member.addMany` / `member.update` / `member.remove` | Manage the team. Removing someone reassigns their tasks. |
+| `project.update` | Project metadata. |
+
+### Totals without double counting
+
+Let:
+
+- `own(t)`: minutes, cost and points of task `t`, without its subtasks;
+- `children(t)`: its direct subtasks;
+- `primary(c)`: the primary parent of `c`.
+
+```
+rate(t)          = rate of t  ??  rate of the assignee  ??  default rate of the project
+cost(t)          = round(minutes(t) × rate(t) / 60)
+
+total            = Σ own(t)                          for each task, once
+contribution(t)  = own(t) + Σ contribution(c)        c ∈ children(t) with primary(c) = t
+branch(t)        = Σ own(x)                          x ∈ {t} ∪ descendants(t), each once
+```
+
+- **Contribution.** This is the **Σ** column of the tree and the PDF. A shared subtask only adds up under its primary parent; everywhere else it appears as a reference. That is why sibling rows can be added up and the total matches.
+- **Branch.** What a task really needs. Its difference from the contribution is the `+X h 🔗` warning.
+
+### Savings from shared subtasks
+
+```
+part(h)   = own(h) + Σ part(c)        c ∈ children(h) with a single parent
+paths(h)  = number of paths from the roots to h
+savings   = Σ part(h) × (paths(h) − 1)       for each h with 2 or more parents
+naive     = total + savings                  (what adding up every appearance would give)
+```
+
+**Example with the project of the screenshots:**
+
+- “Design users table” (4 h, €220) hangs from Login, Sign-up and Payment gateway, so `paths = 3`.
+- `savings = 4 h × (3 − 1) = 8 h`, i.e. €440.
+- The total is 113 h, not 121 h.
+
+The whole calculation is linear in tasks + edges. With 5,000 tasks, `estimate` takes about 10 ms.
+
+### Money
+
+```
+contingency = round(subtotal × contingency %)
+base        = subtotal + contingency
+tax         = round(base × tax %)
+total       = base + tax
+```
+
+### Duration and end date
+
+```
+days(p)   = minutes(p) × (1 + contingency %) / 60 / hoursPerDay(p)     for each person p
+duration  = max days(p)          (the team works in parallel; whoever takes longest sets the pace)
+weeks     = duration / working days per week
+end       = start + ⌈duration⌉ working days    (the start day counts if it is a working day)
+```
+
+- `minutes(p)` adds up the tasks of person `p`, each once.
+- Unassigned hours form their own group and use the project's hours per day.
+- It is an **optimistic** estimate: dependencies between tasks are not taken into account.
+
+**Progress** = minutes done / total minutes. Without hours, tasks done / tasks.
+
+---
+
+## Persistence
+
+### Data folder
+
+The folder is chosen in this order of priority:
+
+1. `PLANNER_DATA_DIR`.
+2. In the portable version: the `PlannerData` folder next to the `.exe`, if it is writable.
+3. In development: `.planner-data/`.
+4. Otherwise: `%APPDATA%\Planner\data`.
+
+```
+<data folder>/
+├─ settings.json                  Theme, language, issuer details and PDF options of each project
+├─ projects/<id>.json             One file per project (+ <id>.json.bak, the previous version)
+├─ backups/YYYY-MM-DD/<id>.json   Daily copy; kept for 14 days
+├─ trash/<id>-<date>.json         Projects moved to the trash (never deleted)
+└─ quarantine/                    Unreadable files, set aside so they are not lost
+```
+
+### Project file format
+
+```json
+{
+  "format": "planner.project",
+  "schemaVersion": 1,
+  "meta": { "id": "…", "name": "ACME online store", "currency": "EUR", "contingencyBps": 1000, "…": "…" },
+  "members": [{ "id": "…", "name": "Anna Brooks", "rateCents": 5000, "hoursPerDay": 7, "…": "…" }],
+  "tasks": [{ "id": "…", "title": "Login", "estimateMinutes": 120, "assigneeId": "…", "…": "…" }],
+  "structure": {
+    "roots": ["…"],
+    "children": { "<parent>": ["<child>", "…"] },
+    "parents": { "<child>": ["<primary parent>", "<other parent>"] }
+  }
+}
+```
+
+When reading, the file is validated with zod (`infrastructure/validation/schemas.ts`). The domain invariants are also checked: unique ids, a consistent structure and no cycles.
+
+### Writing and recovery
+
+- **Deferred writes.** Changes are grouped (300 ms) and written in the background. Pending writes are forced when the app or the Windows session closes.
+- **Atomic writes.** The file is written to `<id>.json.tmp`, flushed to disk (`fsync`) and renamed. Before that, the previous version is kept as `.bak`. A power cut never leaves a half-written file.
+- **Recovery.** If the main file cannot be read, `.tmp` is tried and then `.bak`. Unreadable files are moved to `quarantine/`.
+- **Format versions.**
+  - A file from an **older** version is migrated when opened (`MIGRATIONS` in `codec.ts`).
+  - One from a **newer** version opens read-only, so it is not damaged.
+- **Settings.** `settings.json` is read field by field: an invalid value falls back to its default without losing the rest.
+
+---
+
+## IPC and security
+
+### IPC contract
+
+`src/shared/ipc/contract.ts` defines each channel with its input and output types. If a channel is missing from the `CHANNELS` list, the code does not compile.
+
+Every response is an `IpcResult`: `{ ok: true, data }` or `{ ok: false, error: { code, message, reason?, params? } }`. Errors are never thrown across the bridge.
+
+| Channel | What it does |
+|---|---|
+| `app.info` · `app.openDataDir` | Version, data folder, portable or not, system languages · open the folder in Explorer |
+| `projects.list` · `projects.create` · `projects.duplicate` · `projects.trash` | Project catalog (cards with totals) |
+| `projects.exportJson` · `projects.importJson` | Export and import a project as JSON |
+| `projects.members` | Team of another project (to import it) |
+| `project.open` · `project.close` | Open a project (returns a full `Snapshot`) and close it |
+| `project.command` · `project.undo` · `project.redo` | Run a domain command, undo or redo (they return a `Delta`) |
+| `project.exportPdf` | Generate the PDF with the chosen options and language |
+| `settings.get` · `settings.set` · `settings.pickLogo` | Preferences (theme, language, issuer) and issuer logo |
+| `project.saveStatus` event | Save status: `saving`, `saved` or `error` |
+
+### Security measures
+
+- **Interface window.** It uses `contextIsolation` and `sandbox`, and has no `nodeIntegration`. The preload only exposes `window.planner.invoke(channel, input)` and `on(event)`, and only for the channels of the contract.
+- **Validation in the main process.**
+  - It checks that the message comes from the app's own interface.
+  - It validates with **strict** zod schemas (`infrastructure/ipc/inputSchemas.ts`): an unknown key is an error.
+- **Content-Security-Policy.** Strict in production: no inline scripts, no external origins and `object-src 'none'`. It is injected by `electron.vite.config.ts`.
+- **Global hardening** (`infrastructure/electron/main/security.ts`):
+  - no new windows are opened;
+  - no navigation outside the app;
+  - no `<webview>`;
+  - every permission is denied (camera, notifications…).
+- **Other measures:**
+  - a single instance of the app;
+  - no application menu;
+  - the developer tools are only available unpackaged;
+  - the window that generates the PDF runs no JavaScript and all user text is escaped;
+  - executable fuses (see [Building the .exe](#building-the-exe)).
+
+---
+
+## PDF generation
+
+```
+ReportService (application)
+  ├─ buildReportModel(state, estimation, options, issuer)  →  ReportModel (raw, already calculated data)
+  └─ PdfRenderer (port)
+       └─ ElectronPdfRenderer (infrastructure/pdf)
+            ├─ renderReportHtml(model)  → HTML + print CSS in the chosen language (reportHtml.ts, reportText.ts, reportCss.ts)
+            ├─ hidden window, without JavaScript, that loads that HTML
+            └─ printToPDF (A4 or Letter, footer with page numbers)
+```
+
+- **Sections:**
+  1. cover;
+  2. summary with the budget (work, contingency, taxable base, tax and total);
+  3. WBS breakdown with subtotals;
+  4. team and workload;
+  5. shared subtasks appendix;
+  6. task details (if descriptions go in their own section);
+  7. terms.
+- **Language.** The export options carry the language; texts, number and date formats, the footer and the file name (`… - quote 2026-09-30.pdf` / `… - presupuesto 2026-09-30.pdf`) follow it. The model only carries raw data (an untitled task has an empty title); the renderer adds the localized placeholders.
+- **Additive table.** A shared subtask has amounts only under its primary parent. Everywhere else a `↗ … shared · see 1.1.1` row appears without figures. The total says “each shared subtask counted once”, and the appendix explains how much double counting was avoided.
+- **Breakdown levels.** If the depth is limited, deeper levels are added into their visible task.
+- **Descriptions.** They are turned into safe HTML by `descriptionHtml.ts`: paragraphs, lists and bold, with all text escaped.
+
+---
+
+## Tests
+
+```bash
+pnpm test
+```
+
+```bash
+pnpm test:e2e
+```
+
+- `pnpm test` runs the unit, property and i18n tests.
+- `pnpm test:e2e` builds the app and runs the end-to-end scenarios.
+
+| Type | Where | What it covers |
+|---|---|---|
+| **Domain** | `tests/unit/domain` | Graph (cycles, moves, primary parent, WBS codes), command reducer, durations, estimation and error reasons. |
+| **Properties** | fast-check in the domain, application and shared tests | Invariants after random command sequences: no cycles, `naive − total = savings`, undo and redo return to the same state, deltas rebuild exactly the state of the main process, and typed numbers read back unchanged in both languages. |
+| **Performance** | `tests/unit/domain/estimation/perf.test.ts` | `estimate` with 5,000 tasks. |
+| **Application** | `tests/unit/application` | Sessions and deltas, catalog (duplicate and import with new ids and clamped names) and report model (the table adds up to the total). |
+| **Shared** | `tests/unit/shared` | Formatting and parsing in English and Spanish, resolving the “System” language. |
+| **Infrastructure** | `tests/unit/infrastructure` | JSON repository (atomic writes, recovery, quarantine, backups), PDF HTML in both languages (escaping, descriptions, placeholders, file name), zod schemas and the stored language read at startup. |
+| **Presentation** | `tests/unit/presentation` | Flattening the tree into rows and the queue of keys typed while a task is being created. |
+| **i18n** | `tests/unit/i18n` | Catalogs complete in both languages and code written in English. |
+| **E2E** | `tests/e2e` | The real app with Playwright: planning with the keyboard, sharing a subtask without double counting, undo, PDF export, persistence after restarting, team, descriptions, and switching the language of the interface and of the PDF. |
+
+The E2E tests start the built app with a temporary data folder (`PLANNER_DATA_DIR`), automatic dialogs (`PLANNER_E2E_DIR`), a temporary Chromium profile and a fixed language, so they do not depend on the machine.
+
+---
+
+## Adding a feature
+
+**Example:** a **due date** (`dueDate`) on tasks. Each step touches a single layer:
+
+1. **Domain** (`src/domain`):
+   - In `task/Task.ts`, add the field to `Task`, `TaskFields` and `DEFAULT_TASK_FIELDS`.
+   - In `task/validateTask.ts`, validate it (for example with `isIsoDate`), with an error `reason`.
+   - Add tests in `tests/unit/domain/`.
+2. **Persistence** (`src/infrastructure`):
+   - Add the field to the schema in `validation/schemas.ts`.
+   - If older files do not have it, bump `CURRENT_SCHEMA_VERSION` in `persistence/json/codec.ts`.
+   - Add the migration to `MIGRATIONS` and a test that opens a file of the previous version.
+3. **IPC.** Add the field to the `TaskPatch` schema in `infrastructure/ipc/inputSchemas.ts`. The objects are strict: without the field, the main process rejects the message.
+4. **Application** (`src/application`). Nothing to do for a new field: `task.update` already carries it.
+   - For a **new use case**, create the service here. If it needs something external, define a port in `application/ports/` and its adapter in `infrastructure/`.
+   - Wire them in `infrastructure/electron/main/container.ts`.
+5. **Presentation** (`src/presentation`):
+   - Add the control in `features/detail/TaskDetailPanel.tsx`, with its texts in `i18n/catalog/detail.ts` (`en` and `es`).
+   - To see it in the tree, add a column in `features/tree/cells.tsx`.
+6. **PDF.** Add the data in `application/reports/buildReportModel.ts`, render it in `infrastructure/pdf/reportHtml.ts` and add its labels to `reportText.ts`.
+7. **Check:**
+
+   ```bash
+   pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e
+   ```
+
+**Other cases:**
+
+| If you need… | Steps |
+|---|---|
+| A **new command** | Add it to the `Command` union (`domain/project/commands.ts`) and handle it in `domain/project/apply.ts`. Add its zod schema in `inputSchemas.ts`. In the interface, send it with `dispatch` from `presentation/stores/project.ts`. |
+| A **new IPC channel** | Add it to `Contract` and `CHANNELS` in `shared/ipc/contract.ts`. Add its handler in `infrastructure/ipc/registerIpcHandlers.ts`. |
+| Another **storage** (for example SQLite) | Implement `ProjectRepository` in `infrastructure/persistence/sqlite/` and swap it in `container.ts`. The domain, application and interface do not change. |
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---|---|
+| **SmartScreen blocks the `.exe`** | Click “More info” and then “Run anyway”, or [sign the executable](#building-the-exe). |
+| **The portable version saves to `%APPDATA%`** | The folder of the `.exe` is not writable (for example, inside `Program Files`). Move it to a folder of your own. |
+| **A project does not appear or does not open** | Look in `quarantine/` (damaged files), `backups/` (daily copies) and `trash/` (trash) inside the data folder. To recover a copy, close the app and copy the file to `projects/`. |
+| **“The file comes from a newer version of Planner”** | It was created with a later version of the app. It opens read-only: update the app. |
+| **Date fields keep the format of the previous language** | Native date fields follow the language the app started with: restart the app. |
+| **`pnpm install` rejects a version because of `minimumReleaseAge`** | pnpm 11 does not install versions published very recently. Wait, or add the version to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`. |
+| **“Electron failed to install correctly”** | Run `pnpm exec install-electron` to download the binary. |
+| **The E2E tests use old code** | `playwright test` uses what is in `out/`. `pnpm test:e2e` builds first; if you run Playwright by hand, run `pnpm build` before. |
+| **The packaged app does not start after touching `resources/app.asar`** | Expected: the fuses verify the integrity of the `.asar`. Build it again with `pnpm dist:win`. |
+| **ESLint: “import is restricted from being used by a pattern”** | A [layer rule](#dependency-rules) was crossed. Move the code to the layer it belongs to, or use `import type` if you only need the type. |
+| **A test fails with “The code is written in English”** | A comment or literal outside a `// i18n:es-start` … `// i18n:es-end` block contains Spanish. Translate it, or move the text to the `es` catalog. |
+
+---
+
+## License
+
+Planner is **source-available** under the [PolyForm Noncommercial License 1.0.0](LICENSE.md):
+
+- You may use, copy, modify and share it for any **noncommercial** purpose: personal use, study, research, hobby projects, and use by charities, schools, public research organizations or government institutions.
+- **Any commercial use needs a separate license**, including using it at work, for example to prepare quotes for paying clients. To ask for one, [open an issue](../../issues/new) in this repository.
+
+Because it restricts commercial use, it is not an open source license in the OSI sense. The third-party libraries the app uses keep their own (permissive) licenses.
+
+Required Notice: Copyright 2026 Daniel Cano Carrascosa

@@ -1,0 +1,9 @@
+{
+  // Infrastructure (Electron main process, preload, adapters) and configuration files.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": ["src/infrastructure/**/*.ts", "electron.vite.config.ts", "vitest.config.ts", "playwright.config.ts"]
+}

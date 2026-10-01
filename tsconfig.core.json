@@ -1,0 +1,10 @@
+{
+  // Core (domain, application and shared): no Node or DOM types.
+  // If anything in these layers uses fs, process or document, it does not compile.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": []
+  },
+  "include": ["src/domain/**/*.ts", "src/application/**/*.ts", "src/shared/**/*.ts"]
+}

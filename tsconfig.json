@@ -1,0 +1,10 @@
+{
+  // Config for the editor. The real check is done by tsconfig.{core,node,web,test}.json (pnpm typecheck).
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["node", "vite/client"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "*.ts"]
+}

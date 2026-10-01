@@ -1,0 +1,37 @@
+appId: com.planner.desktop
+productName: Planner
+copyright: Copyright © 2026 Daniel Cano Carrascosa
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+npmRebuild: false
+asar: true
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  signExecutable: false
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Planner
+  artifactName: ${productName}-${version}-setup.${ext}
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
+# Hardening of the executable: no Node mode, no NODE_OPTIONS or --inspect,
+# and it only loads the app from the asar, with its integrity verified.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true

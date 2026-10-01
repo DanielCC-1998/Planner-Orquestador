@@ -1,0 +1,450 @@
+import { STATUS_LABELS } from '@shared/labels'
+import { createFormatter, type Formatter } from '@shared/format'
+import type { ReportModel, ReportRow } from '@application'
+import { reportCss } from './reportCss'
+import { escapeHtml, renderDescriptionHtml } from './descriptionHtml'
+import { REPORT_TEXT, type ReportText } from './reportText'
+
+const e = escapeHtml
+
+type TaskRow = Extract<ReportRow, { kind: 'task' }>
+
+/** Formatter and texts in the language of the report. */
+interface Locale {
+  readonly f: Formatter
+  readonly text: ReportText
+}
+
+function localeOf(model: ReportModel): Locale {
+  const language = model.options.language
+  return { f: createFormatter(language), text: REPORT_TEXT[language] }
+}
+
+/** Usable height of the cover for the paper size and orientation (printToPDF margins included). */
+function coverHeight(model: ReportModel): string {
+  const { pageSize, landscape } = model.options
+  const pageHeightMm = landscape ? (pageSize === 'A4' ? 210 : 215.9) : pageSize === 'A4' ? 297 : 279.4
+  return `${Math.floor(pageHeightMm - 32)}mm`
+}
+
+function money(model: ReportModel, f: Formatter, cents: number): string {
+  return f.money(cents, model.project.currency)
+}
+
+function cover(model: ReportModel): string {
+  const { project, summary, issuer, options } = model
+  const { f, text } = localeOf(model)
+  const cols = options.columns
+  const issuerLines = [issuer.taxId && `${text.cover.taxId} ${issuer.taxId}`, issuer.address, issuer.email, issuer.phone, issuer.website]
+    .filter(Boolean)
+    .map((l) => e(String(l)))
+    .join(' · ')
+  const hero: string[] = []
+  if (cols.cost) {
+    hero.push(
+      kpi(
+        text.kpi.totalAmount,
+        money(model, f, summary.money.totalCents),
+        project.taxBps > 0 ? text.cover.taxIncluded(e(project.taxLabel)) : '',
+        true
+      )
+    )
+  }
+  if (cols.hours) {
+    hero.push(
+      kpi(
+        text.kpi.effort,
+        f.hours(summary.totalMinutes + summary.contingencyMinutes),
+        text.cover.taskCount(summary.taskCount, f.number(summary.taskCount, 0))
+      )
+    )
+  }
+  if (summary.days > 0) {
+    hero.push(
+      kpi(text.kpi.estimatedDuration, f.days(summary.days), summary.endDate ? text.cover.estimatedEnd(f.date(summary.endDate)) : '')
+    )
+  }
+  return `
+<section class="cover" style="--cover-height:${coverHeight(model)}">
+  <div class="band"></div>
+  <div class="kicker">${e(text.cover.kicker)}</div>
+  <h1>${e(project.name)}</h1>
+  ${project.client ? `<div class="client">${text.cover.forClient(e(project.client))}</div>` : ''}
+  <div class="quote">
+    ${project.quoteNumber ? `<div><span class="label">${e(text.cover.quoteNumber)}</span><span class="value">${e(project.quoteNumber)}</span></div>` : ''}
+    <div><span class="label">${e(text.cover.date)}</span><span class="value">${f.dateLong(project.quoteDate)}</span></div>
+    ${project.validUntil ? `<div><span class="label">${e(text.cover.validUntil)}</span><span class="value">${f.dateLong(project.validUntil)}</span></div>` : ''}
+    ${project.startDate ? `<div><span class="label">${e(text.cover.plannedStart)}</span><span class="value">${f.dateLong(project.startDate)}</span></div>` : ''}
+  </div>
+  ${hero.length ? `<div class="hero">${hero.join('')}</div>` : ''}
+  <div class="spacer"></div>
+  ${
+    issuer.name || issuer.logoDataUrl
+      ? `<div class="issuer">
+    ${issuer.logoDataUrl ? `<img src="${e(issuer.logoDataUrl)}" alt="">` : ''}
+    <div>
+      ${issuer.name ? `<div class="name">${e(issuer.name)}</div>` : ''}
+      ${issuerLines ? `<div class="lines">${issuerLines}</div>` : ''}
+    </div>
+  </div>`
+      : ''
+  }
+</section>`
+}
+
+function kpi(label: string, value: string, sub = '', accent = false): string {
+  return `<div class="kpi${accent ? ' accent' : ''}"><div class="label">${e(label)}</div><div class="value">${value}</div>${
+    sub ? `<div class="sub">${sub}</div>` : ''
+  }</div>`
+}
+
+function summarySection(model: ReportModel, flow: boolean): string {
+  const { summary, project, options } = model
+  const { f, text } = localeOf(model)
+  const cols = options.columns
+  const kpis: string[] = []
+  if (cols.cost) kpis.push(kpi(text.kpi.totalAmount, money(model, f, summary.money.totalCents), '', true))
+  if (cols.hours) {
+    kpis.push(
+      kpi(
+        text.kpi.estimatedHours,
+        f.hours(summary.totalMinutes + summary.contingencyMinutes),
+        summary.contingencyMinutes > 0
+          ? text.summary.withContingency(f.hours(summary.totalMinutes), f.hours(summary.contingencyMinutes))
+          : ''
+      )
+    )
+  }
+  kpis.push(
+    kpi(
+      text.kpi.duration,
+      summary.days > 0 ? f.days(summary.days) : '—',
+      summary.weeks !== null && summary.days > 0
+        ? `${f.weeks(summary.weeks)}${summary.endDate ? ` · ${text.summary.ends(f.date(summary.endDate))}` : ''}`
+        : ''
+    )
+  )
+  if (cols.storyPoints) kpis.push(kpi(text.kpi.storyPoints, f.storyPoints(summary.storyPoints)))
+  kpis.push(kpi(text.kpi.tasks, f.number(summary.taskCount, 0)))
+
+  const m = summary.money
+  const budget = cols.cost
+    ? `
+  <h3>${e(text.summary.budget)}</h3>
+  <table class="budget">
+    <tbody>
+      <tr><td>${e(text.summary.estimatedWork)}</td><td class="num">${money(model, f, m.subtotalCents)}</td></tr>
+      ${project.contingencyBps > 0 ? `<tr><td>${text.summary.contingency(f.bps(project.contingencyBps))}</td><td class="num">${money(model, f, m.contingencyCents)}</td></tr>` : ''}
+      ${project.taxBps > 0 ? `<tr><td>${e(text.summary.taxableBase)}</td><td class="num">${money(model, f, m.baseCents)}</td></tr>` : ''}
+      ${project.taxBps > 0 ? `<tr><td>${e(project.taxLabel)} (${f.bps(project.taxBps)})</td><td class="num">${money(model, f, m.taxCents)}</td></tr>` : ''}
+      <tr class="total"><td>${e(text.total)}</td><td class="num">${money(model, f, m.totalCents)}</td></tr>
+    </tbody>
+  </table>`
+    : ''
+
+  const notes: string[] = []
+  if (summary.savingsMinutes > 0) {
+    const parts = [cols.hours ? f.hours(summary.savingsMinutes) : '', cols.cost ? money(model, f, summary.savingsCents) : '']
+      .filter(Boolean)
+      .join(' · ')
+    notes.push(`<div class="note shared">${text.summary.sharedNote(parts)}</div>`)
+  }
+  if (summary.days > 0) {
+    notes.push(
+      `<div class="note">${e(text.summary.durationNote)}${
+        summary.bottleneck ? ` ${text.summary.paceSetter(e(summary.bottleneck.name))}` : ''
+      }</div>`
+    )
+  }
+  return `
+<section class="${flow ? 'flow' : ''}">
+  <h2>${e(text.summary.title)}</h2>
+  <div class="kpis">${kpis.slice(0, 4).join('')}</div>
+  ${budget}
+  ${notes.join('')}
+  ${project.description ? `<h3>${e(text.summary.scope)}</h3><p class="pre">${e(project.description)}</p>` : ''}
+</section>`
+}
+
+function breakdownSection(model: ReportModel): string {
+  const { f, text } = localeOf(model)
+  const statusLabels = STATUS_LABELS[model.options.language]
+  const c = model.options.columns
+  const head = [
+    `<th>${e(text.columns.wbs)}</th>`,
+    `<th>${e(text.columns.task)}</th>`,
+    c.assignee ? `<th>${e(text.columns.assignee)}</th>` : '',
+    c.status ? `<th>${e(text.columns.status)}</th>` : '',
+    c.storyPoints ? `<th class="num">${e(text.columns.storyPoints)}</th>` : '',
+    c.hours ? `<th class="num">${e(text.columns.hours)}</th>` : '',
+    c.rate ? `<th class="num">${e(text.columns.rate)}</th>` : '',
+    c.cost ? `<th class="num">${e(text.columns.amount)}</th>` : ''
+  ].join('')
+  const valueCells = (sp: number | null, minutes: number | null, rate: number | null, cents: number | null, blankZero: boolean) => {
+    const show = (v: number | null, format: (n: number) => string) => (v === null || (blankZero && v === 0) ? '—' : format(v))
+    return [
+      c.storyPoints ? `<td class="num">${show(sp, (n) => f.storyPoints(n))}</td>` : '',
+      c.hours ? `<td class="num">${show(minutes, (n) => f.hours(n))}</td>` : '',
+      c.rate ? `<td class="num">${rate === null ? '—' : `${money(model, f, rate)}/h`}</td>` : '',
+      c.cost ? `<td class="num">${show(cents, (n) => money(model, f, n))}</td>` : ''
+    ].join('')
+  }
+  const leadCells = (row: ReportRow) => {
+    const pad = Math.min(row.depth - 1, 8) * 11
+    return { pad }
+  }
+  const columnCount =
+    2 +
+    [c.assignee, c.status, c.storyPoints, c.hours, c.rate, c.cost].filter(Boolean).length
+  const rows = model.rows
+    .map((row) => {
+      const { pad } = leadCells(row)
+      if (row.kind === 'task') {
+        const inlineDesc = model.options.descriptions === 'inline' && row.description !== ''
+        const cls = [row.depth === 1 ? 'level-1' : '', row.isParent ? 'parent' : '', inlineDesc ? 'has-desc' : '']
+          .filter(Boolean)
+          .join(' ')
+        const collapsed =
+          row.collapsedCount > 0 ? ` <span class="collapsed">${e(text.breakdown.includesSubtasks(row.collapsedCount))}</span>` : ''
+        const own = row.isParent && row.collapsedCount === 0
+        const descRow = inlineDesc
+          ? `
+<tr class="desc-row${row.depth === 1 ? ' level-1' : ''}"><td></td><td colspan="${columnCount - 1}" style="padding-left:${6 + pad}pt"><div class="desc">${renderDescriptionHtml(row.description)}</div></td></tr>`
+          : ''
+        return `<tr class="${cls}">
+  <td class="code">${e(row.code)}</td>
+  <td class="title" style="padding-left:${6 + pad}pt">${e(row.title)}${collapsed}</td>
+  ${c.assignee ? `<td>${row.assignee ? e(row.assignee) : '<span class="muted">—</span>'}</td>` : ''}
+  ${c.status ? `<td class="status">${e(statusLabels[row.status])}</td>` : ''}
+  ${valueCells(row.storyPoints || null, row.minutes, own && row.minutes === 0 ? null : row.rateCents, row.costCents, own)}
+</tr>${descRow}`
+      }
+      if (row.kind === 'reference') {
+        const ref = row.refKind === 'see' ? text.breakdown.seeShared(e(row.refCode)) : text.breakdown.includedShared(e(row.refCode))
+        return `<tr class="ref">
+  <td class="code">${e(row.code)}</td>
+  <td style="padding-left:${6 + pad}pt">↗ ${e(row.title)} <span class="tag">${ref}</span></td>
+  ${c.assignee ? '<td></td>' : ''}
+  ${c.status ? '<td></td>' : ''}
+  ${valueCells(null, null, null, null, true)}
+</tr>`
+      }
+      const span = 2 + (c.assignee ? 1 : 0) + (c.status ? 1 : 0)
+      return `<tr class="subtotal">
+  <td class="label" colspan="${span}">${text.breakdown.subtotal(e(row.code), e(row.title))}</td>
+  ${valueCells(row.storyPoints, row.minutes, null, row.costCents, false)}
+</tr>`
+    })
+    .join('\n')
+  const s = model.summary
+  const span = 2 + (c.assignee ? 1 : 0) + (c.status ? 1 : 0)
+  const total = `<tr class="grand"><td colspan="${span}">${e(text.total)}${
+    s.savingsMinutes > 0 ? ` <span class="collapsed">${e(text.breakdown.sharedCountedOnce)}</span>` : ''
+  }</td>${valueCells(s.storyPoints, s.totalMinutes, null, s.money.subtotalCents, false)}</tr>`
+  return `
+<section class="flow">
+  <h2>${e(text.breakdown.title)}</h2>
+  <table class="wbs">
+    <thead><tr>${head}</tr></thead>
+    <tbody>
+${rows}
+${total}
+    </tbody>
+  </table>
+  ${
+    model.project.contingencyBps > 0 || model.project.taxBps > 0
+      ? `<p class="small muted" style="margin-top:6pt">${e(text.breakdown.amountsNote)}</p>`
+      : ''
+  }
+</section>`
+}
+
+/** "Task details": one card per task with a description, in the order of the breakdown. */
+function detailsSection(model: ReportModel): string {
+  const { f, text } = localeOf(model)
+  const statusLabels = STATUS_LABELS[model.options.language]
+  const c = model.options.columns
+  const items = model.rows.filter((r): r is TaskRow => r.kind === 'task' && r.description !== '')
+  if (items.length === 0) return ''
+  const body = items
+    .map((r) => {
+      const meta = [
+        c.assignee && r.assignee ? e(r.assignee) : '',
+        c.status ? e(statusLabels[r.status]) : '',
+        c.hours && r.attrMinutes > 0 ? f.hours(r.attrMinutes) : '',
+        c.cost && r.attrCostCents > 0 ? money(model, f, r.attrCostCents) : ''
+      ]
+        .filter(Boolean)
+        .join(' · ')
+      return `<article class="detail${r.depth === 1 ? ' level-1' : ''}">
+  <header><span class="dcode">${e(r.code)}</span><span class="dtitle">${e(r.title)}</span>${meta ? `<span class="meta">${meta}</span>` : ''}</header>
+  ${r.path.length ? `<div class="path">${e(r.path.join(' › '))}</div>` : ''}
+  <div class="desc">${renderDescriptionHtml(r.description)}</div>
+</article>`
+    })
+    .join('')
+  return `
+<section class="flow details">
+  <h2>${e(text.details.title)}</h2>
+  <p class="small muted">${e(text.details.intro)}</p>
+  ${body}
+</section>`
+}
+
+function workloadSection(model: ReportModel, flow: boolean): string {
+  const { f, text } = localeOf(model)
+  const c = model.options.columns
+  const rows = model.workload
+  if (rows.length === 0) return ''
+  const maxDays = Math.max(...rows.map((r) => r.days), 0.0001)
+  const body = rows
+    .map(
+      (r) => `<tr class="${r.isBottleneck ? 'bottleneck' : ''}">
+  <td>${r.isBottleneck ? '<span class="star">★</span> ' : ''}${e(r.name)}${r.role ? ` <span class="muted small">${e(r.role)}</span>` : ''}</td>
+  <td class="num">${f.number(r.hoursPerDay, 2)} h</td>
+  ${c.hours ? `<td class="num">${f.hours(r.minutes)}</td>` : ''}
+  ${c.storyPoints ? `<td class="num">${f.storyPoints(r.storyPoints)}</td>` : ''}
+  ${c.cost ? `<td class="num">${money(model, f, r.costCents)}</td>` : ''}
+  <td class="num">${f.number(r.days, 1)}</td>
+  <td><div class="bar"><i style="width:${Math.round((r.days / maxDays) * 100)}%"></i></div></td>
+</tr>`
+    )
+    .join('\n')
+  return `
+<section class="${flow ? 'flow' : ''}">
+  <h2>${e(text.workload.title)}</h2>
+  <table>
+    <thead><tr>
+      <th>${e(text.columns.person)}</th><th class="num">${e(text.columns.hoursPerDay)}</th>
+      ${c.hours ? `<th class="num">${e(text.columns.hours)}</th>` : ''}
+      ${c.storyPoints ? `<th class="num">${e(text.columns.storyPoints)}</th>` : ''}
+      ${c.cost ? `<th class="num">${e(text.columns.amount)}</th>` : ''}
+      <th class="num">${e(text.columns.days)}</th><th style="width:28%">${e(text.columns.load)}</th>
+    </tr></thead>
+    <tbody>${body}</tbody>
+  </table>
+  <p class="small muted" style="margin-top:6pt">${e(text.workload.note(model.project.contingencyBps > 0))}</p>
+</section>`
+}
+
+function sharedSection(model: ReportModel, flow: boolean): string {
+  const { f, text } = localeOf(model)
+  const c = model.options.columns
+  if (model.shared.length === 0) return ''
+  const body = model.shared
+    .map(
+      (s) => `<tr>
+  <td class="code">${e(s.code)}</td>
+  <td>${e(s.title)}</td>
+  <td>${s.parents.map((p) => `${e(p.code)} ${e(p.title)}`).join('<br>')}</td>
+  <td class="num">${f.number(s.occurrences, 0)}</td>
+  ${c.hours ? `<td class="num">${f.hours(s.minutes)}</td>` : ''}
+  ${c.cost ? `<td class="num">${money(model, f, s.costCents)}</td>` : ''}
+  ${c.hours ? `<td class="num">${f.hours(s.savedMinutes)}</td>` : ''}
+  ${c.cost ? `<td class="num">${money(model, f, s.savedCents)}</td>` : ''}
+</tr>`
+    )
+    .join('\n')
+  const s = model.summary
+  return `
+<section class="${flow ? 'flow' : ''}">
+  <h2>${e(text.shared.title)}</h2>
+  <p>${e(text.shared.intro)}</p>
+  <table>
+    <thead><tr>
+      <th>${e(text.columns.wbs)}</th><th>${e(text.columns.subtask)}</th><th>${e(text.columns.neededBy)}</th><th class="num">${e(text.columns.occurrences)}</th>
+      ${c.hours ? `<th class="num">${e(text.columns.hours)}</th>` : ''}
+      ${c.cost ? `<th class="num">${e(text.columns.amount)}</th>` : ''}
+      ${c.hours ? `<th class="num">${e(text.columns.savedHours)}</th>` : ''}
+      ${c.cost ? `<th class="num">${text.columns.savedMoney(e(f.currencySymbol(model.project.currency)))}</th>` : ''}
+    </tr></thead>
+    <tbody>
+${body}
+      <tr class="grand"><td colspan="${4 + (c.hours ? 1 : 0) + (c.cost ? 1 : 0)}">${e(text.shared.totalSaved)}</td>
+      ${c.hours ? `<td class="num">${f.hours(s.savingsMinutes)}</td>` : ''}
+      ${c.cost ? `<td class="num">${money(model, f, s.savingsCents)}</td>` : ''}</tr>
+    </tbody>
+  </table>
+</section>`
+}
+
+function termsSection(model: ReportModel, flow: boolean): string {
+  if (!model.project.terms.trim()) return ''
+  const { text } = localeOf(model)
+  return `
+<section class="${flow ? 'flow' : ''}">
+  <h2>${e(text.terms.title)}</h2>
+  <p class="pre">${e(model.project.terms)}</p>
+</section>`
+}
+
+/**
+ * The model carries raw data: untitled tasks have '' as title, the unassigned group has no name
+ * and an empty tax label means the default one. This fills in the localized placeholders.
+ */
+function withPlaceholders(model: ReportModel): ReportModel {
+  const text = REPORT_TEXT[model.options.language]
+  const titleOrPlaceholder = (title: string) => title || text.untitled
+  return {
+    ...model,
+    project: { ...model.project, taxLabel: model.project.taxLabel || text.defaultTaxLabel },
+    summary: {
+      ...model.summary,
+      bottleneck: model.summary.bottleneck && {
+        ...model.summary.bottleneck,
+        name: model.summary.bottleneck.unassigned ? text.unassigned : model.summary.bottleneck.name
+      }
+    },
+    rows: model.rows.map((r) =>
+      r.kind === 'task'
+        ? { ...r, title: titleOrPlaceholder(r.title), path: r.path.map(titleOrPlaceholder) }
+        : { ...r, title: titleOrPlaceholder(r.title) }
+    ),
+    workload: model.workload.map((w) => (w.isUnassigned ? { ...w, name: text.unassigned } : w)),
+    shared: model.shared.map((s) => ({
+      ...s,
+      title: titleOrPlaceholder(s.title),
+      parents: s.parents.map((p) => ({ ...p, title: titleOrPlaceholder(p.title) }))
+    }))
+  }
+}
+
+/** Complete HTML document of the quote, in the language of the report, ready for printToPDF. */
+export function renderReportHtml(raw: ReportModel): string {
+  const input = withPlaceholders(raw)
+  const cols = input.options.columns
+  const model: ReportModel = {
+    ...input,
+    options: { ...input.options, columns: { ...cols, storyPoints: cols.storyPoints && input.summary.storyPoints > 0 } }
+  }
+  const { text } = localeOf(model)
+  const s = model.options.sections
+  const parts: string[] = []
+  if (s.cover) parts.push(cover(model))
+  if (s.summary) parts.push(summarySection(model, false))
+  if (s.breakdown) parts.push(breakdownSection(model))
+  if (model.options.descriptions === 'section') parts.push(detailsSection(model))
+  if (s.workload) parts.push(workloadSection(model, false))
+  if (s.shared) parts.push(sharedSection(model, true))
+  if (s.terms) parts.push(termsSection(model, true))
+  return `<!doctype html>
+<html lang="${model.options.language}">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
+<title>${text.documentTitle(e(model.project.name))}</title>
+<style>${reportCss(model.project.color)}</style>
+</head>
+<body>
+${parts.filter(Boolean).join('\n')}
+</body>
+</html>`
+}
+
+/** Page footer for printToPDF (it does not inherit the CSS of the document). */
+export function footerTemplate(model: ReportModel): string {
+  const { text } = localeOf(model)
+  const left = [model.issuer.name, model.project.name].filter(Boolean).map(e).join(' · ')
+  return `<div style="width:100%;font-size:7.5px;color:#6b7280;padding:0 14mm;display:flex;justify-content:space-between;font-family:'Segoe UI',Arial,sans-serif;">
+<span>${left}</span><span>${text.pageOf('<span class="pageNumber"></span>', '<span class="totalPages"></span>')}</span></div>`
+}
