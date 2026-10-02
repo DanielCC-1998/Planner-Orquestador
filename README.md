@@ -40,7 +40,8 @@ A subtask can belong to several tasks at once, and hours, cost and duration stil
 | **Team and workload** | Each person has a role, a rate and working hours per day. The workload view splits the work per person and works out the project duration and end date. |
 | **Kanban board** | One column per status. Drag a card to change the status of its task. |
 | **Sprints and status history** | Every status change of a task is recorded with its date and time. Each project sets the length of its sprints (days, weeks or months), and the PDF shows, sprint by sprint, which tasks moved forward or back. |
-| **PDF quote** | It includes these sections:<ul><li>Cover</li><li>Financial summary</li><li>WBS breakdown with subtotals</li><li>Task details (descriptions)</li><li>Task status: lanes by status and progress by sprint (optional)</li><li>Team and workload</li><li>Shared subtasks appendix</li><li>Terms</li></ul>The table adds up exactly to the total. |
+| **PDF quote** | It includes these sections:<ul><li>Cover</li><li>Financial summary</li><li>WBS breakdown with subtotals</li><li>Task details (descriptions)</li><li>Task status: lanes by status and progress by sprint (optional)</li><li>Team and workload</li><li>Shared subtasks appendix</li><li>Particular and general terms</li><li>Acceptance and signatures</li></ul>The table adds up exactly to the total. |
+| **The quote as a contract** | The PDF can be signed to close the project: the parties with their details, what they accept, the governing law and courts, room for both signatures and boxes for the initials on every page. A library keeps your contracts per country (general terms, law and courts) and texts to reuse in the particular terms of any project. |
 | **Resizable layout** | Widen or narrow every column of the tree and the detail panel by dragging their edges. The widths are remembered. |
 | **English and Spanish** | Switch the interface language at any time; choose the PDF language when exporting. Numbers and dates follow the language (`€7,327.16` / `7.327,16 €`). |
 | **Light / dark mode** | Light, dark or follow the system. The PDF is always light, ready to print. |
@@ -85,7 +86,7 @@ There are two executables. They are built into `release/` with `pnpm dist:win` (
 
 **SmartScreen warning.** The executables are not signed, so the first time Windows may show “Windows protected your PC”. Click “More info” and then “Run anyway”.
 
-**Where is my data?** Go to Settings (⚙) → Data → “Open folder”. The contents of that folder are explained in [Persistence](#persistence).
+**Where is my data?** Go to Settings (⚙) → General → Data → “Open folder”. The contents of that folder are explained in [Persistence](#persistence).
 
 ---
 
@@ -250,6 +251,45 @@ The data folder already keeps a `.bak` copy and daily backups automatically (see
   - **Replace:** the backup takes the place of the current version, which is moved to the trash folder, so it can still be recovered.
 - A project created with a newer version of Planner (open in read-only mode) cannot be exported or duplicated, because this version would leave out what it does not know.
 
+### The quote as a contract
+
+The PDF can close the project: when both parties sign it, the quote works as the contract between them. It is set up in three places.
+
+1. **Settings → Your details.** Your details as the provider, the name of your tax ID as the PDF shows it (RUT, C.I., NIF…) and who signs your quotes: name, ID document and position (only if you sign for a company).
+2. **Settings → Contracts.** The library of contracts, written once and reused in every project:
+   - **Contract models**, usually one per country. Each has a name, the governing law and the courts for disputes, and the general terms (separate the clauses with a blank line). The first model is the default one; “Make default” chooses another. If you move to another country, add a model for it.
+   - **Saved texts:** clauses to reuse in the particular terms of any project.
+3. **Project settings → Contract.**
+   - **Contract model:** the default one, or the model of the client's country. A project points to its model, so editing a model changes the next PDFs of every project that uses it. If its model is deleted, the project goes back to the default one.
+   - **The client in the contract:** company or full name, tax ID, address, email, and who signs for the client (name, ID document and position).
+   - **Particular terms:** those of this project. Where they say nothing, the general terms apply; if they contradict each other, these prevail.
+     - **Insert saved text** adds a text of the library at the end, with the next clause number when the terms are numbered.
+     - **Save to the library** keeps these terms for later projects, as one text or clause by clause, each clause named after its title. Texts already in the library are not saved twice.
+
+The number, date and validity of the quote stay in the “Quote (PDF)” tab.
+
+<img src="docs/images/settings-contract.png" alt="Contract models of the library in the settings" width="720">
+
+<img src="docs/images/project-contract.png" alt="Contract tab of a project with the saved texts to insert" width="720">
+
+The “Acceptance and signatures” section of the export closes the PDF. It shows:
+- the parties with their details;
+- what they accept: the quote with its number and date, the scope in the breakdown, the amount and the terms, and how long the offer is valid;
+- the governing law and the courts;
+- a block for each signature, with the signer's name, ID document, position, and place and date.
+
+Any detail left empty is printed as a line to fill in by hand, so the same PDF can be completed when signing.
+
+Ways to sign:
+- **On paper:** two copies, signed at the end, with the initials of both parties in the boxes of the footer of every page, so no page can be swapped. Every page also names the quote and its number.
+- **Electronically:** if you sign this way, the initials boxes can be turned off in the export dialog.
+
+A quote with a number is easier to refer to; the export dialog warns when it has none.
+
+<img src="docs/images/pdf-signatures.png" alt="Acceptance and signatures page of the PDF" width="420">
+
+> Planner gives the contract its structure, not legal advice. Have a lawyer of your country review your general terms once, since every quote reuses them.
+
 ### Layout
 
 - **Columns of the tree.** Drag the edge of a column header to widen or narrow it; double-click the edge to go back to its default width. The task column takes the free space: dragging it sets its minimum width.
@@ -266,7 +306,7 @@ Use “Export PDF” inside the project or in the menu of its card. You can choo
 - the paper (A4 or Letter) and the orientation;
 - where the descriptions go.
 
-The options, including the language, are remembered per project. The issuer details (name, tax ID, address, email, phone, website and logo) are set once in Settings and appear on the cover and in the footer.
+The options, including the language, are remembered per project. The issuer details (name, tax ID, address, email, phone, website and logo) are set once in Settings → Your details and appear on the cover and in the footer. To close the project with the PDF, see [The quote as a contract](#the-quote-as-a-contract).
 
 <img src="docs/images/export-pdf.png" alt="PDF export dialog" width="720">
 
@@ -283,7 +323,7 @@ These are four pages of the [sample PDF](docs/sample-quote.pdf), exported with s
 
 ### Language
 
-- **Interface.** Use the language button in the top bar (the 文A icon), or Settings → Language. The options are English, Español and System. The interface switches immediately.
+- **Interface.** Use the language button in the top bar (the 文A icon), or Settings → General → Language. The options are English, Español and System. The interface switches immediately.
 - **System.** Follows the Windows display language: Spanish if it is Spanish (or Catalan, Galician or Basque), English otherwise.
 - **Formats.** English uses US formats (`€7,327.16 · 124.3 h · Sep 30, 2026 · 21%`); Spanish uses Spanish formats (`7.327,16 € · 124,3 h · 30 sept 2026 · 21 %`). Numbers can be typed with either decimal separator.
 - **PDF.** Its language is chosen in the export dialog and remembered per project.
@@ -294,7 +334,7 @@ These are four pages of the [sample PDF](docs/sample-quote.pdf), exported with s
 
 ### Theme
 
-The theme button in the top bar (☀ / ☾ / 🖥) opens a menu with three options: Light, Dark or System, which follows the Windows theme. It can also be changed in Settings → Appearance.
+The theme button in the top bar (☀ / ☾ / 🖥) opens a menu with three options: Light, Dark or System, which follows the Windows theme. It can also be changed in Settings → General → Appearance.
 
 ### Keyboard shortcuts
 
@@ -538,6 +578,7 @@ src/
 │  │                            commands.ts (Command union) · apply.ts (pure reducer)
 │  │                            createProject.ts · projectData.ts (aggregate ↔ plain data)
 │  │                            tags.ts (project tags, palette keys, name rules)
+│  │                            contractModel.ts (which contract model of the library a quote uses)
 │  ├─ graph/                    TaskGraph.ts (immutable acyclic graph) · wbs.ts (1.2.3 codes, their order)
 │  ├─ estimation/               metrics.ts · estimate.ts (totals, contribution, savings, workload, duration)
 │  │                            pointScale.ts (story points → hours)
@@ -549,7 +590,7 @@ src/
 │  ├─ projects/                 ProjectSessions (sessions, undo/redo, deltas)
 │  │                            ProjectCatalog (create, duplicate, import…) · snapshot.ts (Snapshot, Delta)
 │  ├─ reports/                  ReportModel · buildReportModel (additive table) · ReportService
-│  ├─ settings/                 Settings (types, defaults, language preference) · SettingsService
+│  ├─ settings/                 Settings (types, defaults, language preference, library of contracts) · SettingsService
 │  ├─ errors.ts                 AppError and its reasons
 │  └─ index.ts
 ├─ infrastructure/              Adapters
@@ -581,6 +622,7 @@ src/
    ├─ format.ts                 createFormatter(language): money, hours, dates, date ranges, inputs
    ├─ labels.ts                 Status and priority names per language
    ├─ tagPalette.ts             Fill and text color of each tag color (app and PDF)
+   ├─ terms.ts                  Terms as text: paragraphs, clause numbers, appending and splitting clauses, library limits
    └─ time.ts                   localIsoDate · localDateOf (calendar dates in the time zone of the computer)
 
 tests/
@@ -759,7 +801,7 @@ The folder is chosen in this order of priority:
 
 ```
 <data folder>/
-├─ settings.json                  Theme, language, issuer details and PDF options of each project
+├─ settings.json                  Theme, language, issuer details, the library of contracts (models and saved texts) and PDF options of each project
 ├─ projects/<id>.json             One file per project (+ <id>.json.bak, the previous version)
 ├─ backups/YYYY-MM-DD/<id>.json   Daily copy; kept for 14 days
 ├─ trash/<id>-<date>.json         Projects moved to the trash, or replaced by an imported backup (never deleted)
@@ -773,12 +815,17 @@ The column widths of the tree and the width of the detail panel are view prefere
 ```json
 {
   "format": "planner.project",
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "meta": {
     "id": "…", "name": "ACME online store", "currency": "EUR", "contingencyBps": 1000,
     "pointScale": { "minutesPerPoint": 180, "overrides": [{ "points": 13, "minutes": 2160 }] },
     "sprints": { "length": 2, "unit": "week" },
     "tags": [{ "id": "…", "name": "Frontend", "color": "blue" }],
+    "quote": {
+      "number": "Q-2026-014", "date": "2026-09-30", "validityDays": 30, "terms": "Payment: 40% on signature…",
+      "client": { "legalName": "ACME Retail Ltd.", "taxId": "…", "address": "…", "email": "…", "signerName": "Jordan Smith", "signerId": "", "signerRole": "Head of Digital" },
+      "contractModelId": null
+    },
     "…": "…"
   },
   "members": [{ "id": "…", "name": "Anna Brooks", "rateCents": 5000, "hoursPerDay": 7, "…": "…" }],
@@ -811,9 +858,10 @@ When reading, the file is validated with zod (`infrastructure/validation/schemas
 - **Format versions.**
   - A file from an **older** version is migrated when opened (`MIGRATIONS` in `codec.ts`):
     - version 2 added `meta.pointScale`; version 1 files open without a scale (`null`);
-    - version 3 added the status history, the sprints and the project tags. Version 2 files get an empty history and 2-week sprints, and their free-text tags become tags of the project: one per name, ignoring case, with fixed ids (`tag-1`, `tag-2`…) and colors in turn.
-  - One from a **newer** version opens read-only, so it is not damaged. For example, an app from before version 3 ignores the tags, sprints and history of a version 3 file. Such a project cannot be exported or duplicated either.
-- **Settings.** `settings.json` is read field by field: an invalid value falls back to its default without losing the rest.
+    - version 3 added the status history, the sprints and the project tags. Version 2 files get an empty history and 2-week sprints, and their free-text tags become tags of the project: one per name, ignoring case, with fixed ids (`tag-1`, `tag-2`…) and colors in turn;
+    - version 4 added the client as a party of the contract (`meta.quote.client`) and the contract model of the quote (`meta.quote.contractModelId`, an id of the library of the settings; `null` = the default model). Version 3 files get an empty client, whose details are blank lines in the PDF, and the default model.
+  - One from a **newer** version opens read-only, so it is not damaged. For example, an app from before version 4 ignores the client of the contract of a version 4 file. Such a project cannot be exported or duplicated either.
+- **Settings.** `settings.json` is read field by field: an invalid value falls back to its default without losing the rest. Settings saved before the contract fields existed get them empty, and the library of contracts is read item by item: invalid or repeated models and texts are dropped, and a default model that does not exist is none. Saving some fields of the issuer never clears the others: the IPC patch has no defaults (`IssuerPatchSchema`).
 
 ---
 
@@ -862,12 +910,12 @@ Every response is an `IpcResult`: `{ ok: true, data }` or `{ ok: false, error: {
 
 ```
 ReportService (application)
-  ├─ buildReportModel(state, options, issuer, { now, localDate })  →  ReportModel (raw, already calculated data)
+  ├─ buildReportModel(state, options, issuer, { now, localDate, contract })  →  ReportModel (raw, already calculated data)
   └─ PdfRenderer (port)
        └─ ElectronPdfRenderer (infrastructure/pdf)
             ├─ renderReportHtml(model)  → HTML + print CSS in the chosen language (reportHtml.ts, reportText.ts, reportCss.ts)
             ├─ hidden window, without JavaScript, that loads that HTML
-            └─ printToPDF (A4 or Letter, footer with page numbers)
+            └─ printToPDF (A4 or Letter; footer with the quote number, page numbers and, with signatures, initials boxes)
 ```
 
 - **Sections**, in this order:
@@ -878,10 +926,11 @@ ReportService (application)
   5. task status (with the “Status” option): a bar by number of tasks, lanes with every task by status, and the net changes of each sprint ([rules](#sprints));
   6. team and workload;
   7. shared subtasks appendix (each subtask with the tasks that need it below it);
-  8. terms.
+  8. particular terms of the project, then the general terms of its contract model (with one kind only, a single “Terms” section);
+  9. acceptance and signatures: the parties, what they accept, the governing law and courts, and a block for each signature (see [The quote as a contract](#the-quote-as-a-contract)).
 - **Page breaks.** Rules of `reportCss.ts`, so no section is cut in an odd place:
   - the summary, the task status and the team start on a new page; the breakdown and the task details follow the previous section;
-  - the appendix and the terms stay after the previous section only if all of them fit there; otherwise they start on a new page;
+  - the appendix, each kind of terms and the signatures stay after the previous section only if all of them fit there; otherwise they start on a new page;
   - a page never ends with a title or an introduction alone, a task without its inline description, or a parent without its first subtask;
   - a subtotal or the total never opens a page without the rows it adds up, and table heads repeat on every page;
   - each paragraph of the terms (blank lines separate them) is kept whole;
@@ -910,15 +959,15 @@ pnpm test:e2e
 
 | Type | Where | What it covers |
 |---|---|---|
-| **Domain** | `tests/unit/domain` | Graph (cycles, moves, primary parent, WBS codes), command reducer, durations, estimation, story points scale, status history, sprints (windows, net changes per sprint), project tags and error reasons. |
+| **Domain** | `tests/unit/domain` | Graph (cycles, moves, primary parent, WBS codes), command reducer, durations, estimation, story points scale, status history, sprints (windows, net changes per sprint), project tags, the client of the contract and error reasons. |
 | **Properties** | fast-check in the domain, application and shared tests | Invariants after random command sequences: no cycles, `naive − total = savings`, the status history ends in the current status and never goes back in time, tags always exist, undo and redo return to the same state, deltas rebuild exactly the state of the main process, and typed numbers read back unchanged in both languages. |
 | **Performance** | `tests/unit/domain/estimation/perf.test.ts` | `estimate` with 5,000 tasks. |
 | **Application** | `tests/unit/application` | Sessions and deltas, catalog (duplicate, export and import of backups: keep both, replace, cancel; projects from newer versions refused) and report model (the table adds up to the total, the status section and its sprints, tags). |
 | **Shared** | `tests/unit/shared` | Formatting and parsing in English and Spanish, resolving the “System” language, contrast of the tag colors. |
-| **Infrastructure** | `tests/unit/infrastructure` | JSON repository (atomic writes, recovery, quarantine, backups, migrations 1 → 2 → 3, damaged new fields cleaned up), PDF HTML in both languages (escaping, descriptions, placeholders, file name, status section, tags), zod schemas and the stored language read at startup. |
+| **Infrastructure** | `tests/unit/infrastructure` | JSON repository (atomic writes, recovery, quarantine, backups, migrations 1 → 2 → 3 → 4, damaged new fields cleaned up), PDF HTML in both languages (escaping, descriptions, placeholders, file name, status section, tags, particular and general terms, signatures page, initials in the footer, page breaks), zod schemas (old settings and options, issuer patches that keep the other fields) and the stored language read at startup. |
 | **Presentation** | `tests/unit/presentation` | Flattening the tree into rows, the queue of keys typed while a task is being created, column and panel widths, and the drafts of the story points and sprints tabs. |
 | **i18n** | `tests/unit/i18n` | Catalogs complete in both languages and code written in English. |
-| **E2E** | `tests/e2e` | The real app with Playwright: planning with the keyboard, sharing a subtask without double counting, undo, PDF export, persistence after restarting, team, descriptions, hours from story points, switching the language, project tags (create once, reuse, rename, filter, bulk), resizing columns and the panel, long titles that wrap, status history and sprints with the PDF, and exporting and importing backups. |
+| **E2E** | `tests/e2e` | The real app with Playwright: planning with the keyboard, sharing a subtask without double counting, undo, PDF export, persistence after restarting, team, descriptions, hours from story points, switching the language, project tags (create once, reuse, rename, filter, bulk), resizing columns and the panel, long titles that wrap, status history and sprints with the PDF, exporting and importing backups, and the quote as a contract (a library of contracts per country and saved texts, reused in a project, and the signatures page). |
 
 The E2E tests start the built app with a temporary data folder (`PLANNER_DATA_DIR`), automatic dialogs (`PLANNER_E2E_DIR`), a temporary Chromium profile and a fixed language, so they do not depend on the machine.
 

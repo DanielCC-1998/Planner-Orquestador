@@ -1,11 +1,11 @@
-import type { SprintUnit } from '@domain'
+import type { ContractParty, SprintUnit } from '@domain'
 
 /** Texts of the project settings dialog. */
 export const en = {
   title: 'Project settings',
   saved: 'Project settings saved',
   checkFields: 'Check the highlighted fields',
-  tabs: { general: 'General', planning: 'Planning and costs', points: 'Story points', sprints: 'Sprints', quote: 'Quote (PDF)' },
+  tabs: { general: 'General', planning: 'Planning and costs', points: 'Story points', sprints: 'Sprints', quote: 'Quote (PDF)', contract: 'Contract' },
   /** Sprint length; the PDF groups the status changes of the tasks by sprint. */
   sprints: {
     intro:
@@ -86,8 +86,39 @@ export const en = {
   quoteDateHint: 'Empty = export date',
   validity: 'Valid for (days)',
   validityError: 'Number of days',
-  terms: 'Terms',
-  termsHint: 'Payment terms, exclusions, warranties… (last section of the PDF)'
+  contract: {
+    title: 'Client in the contract',
+    hint: 'For the signatures page of the PDF. Whatever you leave empty is printed as a line to fill in by hand.',
+    fields: {
+      legalName: 'Company or full name',
+      taxId: 'Tax ID',
+      address: 'Address',
+      email: 'Email',
+      signerName: 'Signs for the client',
+      signerId: 'Their ID document',
+      signerRole: 'Their position'
+    } satisfies Record<keyof ContractParty, string>,
+    model: 'Contract model',
+    defaultModel: (name: string | null) => (name ? `Default (${name})` : 'Default (none yet)'),
+    modelHint: 'General terms, governing law and courts. The models are written in Settings → Contracts.',
+    law: 'Law',
+    courts: 'Courts',
+    noLaw: 'No governing law or courts',
+    noModel: 'No contract model: the PDF only has the particular terms.',
+    missingModel: 'The model this project chose no longer exists: it uses the default one.',
+    insert: 'Insert saved text',
+    noTexts: 'No saved texts yet',
+    saveToLibrary: 'Save to the library',
+    saveWhole: 'All of it as one text',
+    saveClauses: 'Clause by clause',
+    wholeName: (project: string) => `Particular terms of “${project}”`,
+    saved: (count: number) => (count === 1 ? '1 text saved to the library' : `${count} texts saved to the library`),
+    nothingNew: 'They were all in the library already',
+    libraryFull: 'The library is full: delete some saved texts in Settings → Contracts'
+  },
+  terms: 'Particular terms',
+  termsHint:
+    'The terms of this project: payment, exclusions, warranties… The general ones come from its contract model; if they contradict each other, these prevail.'
 }
 
 // i18n:es-start
@@ -95,7 +126,7 @@ export const es: typeof en = {
   title: 'Ajustes del proyecto',
   saved: 'Ajustes del proyecto guardados',
   checkFields: 'Revisa los campos marcados',
-  tabs: { general: 'General', planning: 'Planificación y costes', points: 'Puntos de historia', sprints: 'Sprints', quote: 'Presupuesto (PDF)' },
+  tabs: { general: 'General', planning: 'Planificación y costes', points: 'Puntos de historia', sprints: 'Sprints', quote: 'Presupuesto (PDF)', contract: 'Contrato' },
   sprints: {
     intro:
       'Los sprints dividen el proyecto en periodos de la misma duración. Cuando el PDF incluye el estado de las tareas, muestra sprint a sprint qué tareas cambiaron de estado.',
@@ -171,7 +202,38 @@ export const es: typeof en = {
   quoteDateHint: 'Vacía = fecha de exportación',
   validity: 'Validez (días)',
   validityError: 'Número de días',
-  terms: 'Condiciones',
-  termsHint: 'Forma de pago, exclusiones, garantías… (última sección del PDF)'
+  contract: {
+    title: 'Cliente en el contrato',
+    hint: 'Para la página de firmas del PDF. Lo que dejes vacío sale como una línea para rellenar a mano.',
+    fields: {
+      legalName: 'Razón social o nombre completo',
+      taxId: 'Identificación fiscal',
+      address: 'Domicilio',
+      email: 'Correo',
+      signerName: 'Firma por el cliente',
+      signerId: 'Su documento',
+      signerRole: 'Su cargo'
+    },
+    model: 'Modelo de contrato',
+    defaultModel: (name) => (name ? `Predeterminado (${name})` : 'Predeterminado (aún no hay)'),
+    modelHint: 'Condiciones generales, ley aplicable y tribunales. Los modelos se escriben en Ajustes → Contratos.',
+    law: 'Ley',
+    courts: 'Tribunales',
+    noLaw: 'Sin ley aplicable ni tribunales',
+    noModel: 'Sin modelo de contrato: el PDF solo lleva las condiciones particulares.',
+    missingModel: 'El modelo que eligió este proyecto ya no existe: usa el predeterminado.',
+    insert: 'Insertar texto guardado',
+    noTexts: 'Aún no hay textos guardados',
+    saveToLibrary: 'Guardar en la biblioteca',
+    saveWhole: 'Todo como un texto',
+    saveClauses: 'Cláusula a cláusula',
+    wholeName: (project) => `Condiciones particulares de «${project}»`,
+    saved: (count) => (count === 1 ? '1 texto guardado en la biblioteca' : `${count} textos guardados en la biblioteca`),
+    nothingNew: 'Ya estaban todos en la biblioteca',
+    libraryFull: 'La biblioteca está llena: borra algunos textos guardados en Ajustes → Contratos'
+  },
+  terms: 'Condiciones particulares',
+  termsHint:
+    'Las de este proyecto: forma de pago, exclusiones, garantías… Las generales vienen de su modelo de contrato; si se contradicen, prevalecen estas.'
 }
 // i18n:es-end

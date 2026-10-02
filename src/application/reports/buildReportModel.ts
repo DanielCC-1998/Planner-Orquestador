@@ -16,7 +16,7 @@ import {
   type TaskId,
   type TaskStatus
 } from '@domain'
-import type { Issuer } from '../settings/Settings'
+import type { ContractModel, Issuer } from '../settings/Settings'
 import type { ReportLaneTask, ReportModel, ReportOptions, ReportProgress, ReportRow, ReportTag } from './ReportModel'
 
 /** Tags of a task as printed, in the order of the project's list. */
@@ -73,6 +73,8 @@ export interface ReportContext {
   /** Calendar date of a timestamp for the user (the report date and the sprints); UTC by default. */
   readonly localDate?: ((at: string) => string) | undefined
   readonly estimation?: Estimation | undefined
+  /** Contract model of the project, already resolved from the library of the settings. */
+  readonly contract?: ContractModel | null | undefined
 }
 
 /**
@@ -195,6 +197,7 @@ export function buildReportModel(state: ProjectState, options: ReportOptions, is
     generatedAt: now,
     options,
     issuer,
+    contract: context.contract ?? null,
     project: {
       name: meta.name,
       client: meta.client,
@@ -208,7 +211,8 @@ export function buildReportModel(state: ProjectState, options: ReportOptions, is
       quoteNumber: meta.quote.number,
       quoteDate,
       validUntil: meta.quote.validityDays !== null ? addCalendarDays(quoteDate, meta.quote.validityDays) : null,
-      terms: meta.quote.terms
+      terms: meta.quote.terms,
+      clientParty: meta.quote.client
     },
     summary: {
       totalMinutes: est.total.minutes,

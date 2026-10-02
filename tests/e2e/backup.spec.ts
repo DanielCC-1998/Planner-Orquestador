@@ -20,7 +20,7 @@ base('backups: export a project and import it back, keeping both or replacing th
     await cards.click()
     await page.getByRole('menuitem', { name: 'Export backup…' }).click()
     await expect.poll(() => existsSync(backup)).toBe(true)
-    expect(JSON.parse(readFileSync(backup, 'utf8'))).toMatchObject({ format: 'planner.project', schemaVersion: 3, meta: { id, name: 'Backup test' } })
+    expect(JSON.parse(readFileSync(backup, 'utf8'))).toMatchObject({ format: 'planner.project', schemaVersion: 4, meta: { id, name: 'Backup test' } })
 
     // The project changes after the backup.
     await page.evaluate(async (id) => {

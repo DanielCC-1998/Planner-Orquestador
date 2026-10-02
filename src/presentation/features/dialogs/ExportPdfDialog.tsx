@@ -1,6 +1,6 @@
 import { useId, useMemo, useState } from 'react'
 import { FileDown, Loader2 } from 'lucide-react'
-import { LANGUAGES, type Language } from '@domain'
+import { chooseContractModel, LANGUAGES, type Language } from '@domain'
 import type { DescriptionPlacement, ReportColumns, ReportOptions, ReportSections } from '@application'
 import { LANGUAGE_NAMES } from '@shared/i18n/language'
 import { Button } from '../../components/ui/button'
@@ -8,6 +8,7 @@ import { Dialog } from '../../components/ui/dialog'
 import { Field, NativeSelect } from '../../components/ui/input'
 import { Segmented } from '../../components/ui/misc'
 import { useI18n } from '../../i18n'
+import { cn } from '../../lib/cn'
 import { describeError } from '../../i18n/errors'
 import { call } from '../../lib/api'
 import { useProject } from '../../stores/project'
@@ -16,17 +17,18 @@ import { toast } from '../../stores/toasts'
 
 /** Initial form options (the last ones used in each project are remembered). */
 const INITIAL: Omit<ReportOptions, 'language'> = {
-  sections: { cover: true, summary: true, breakdown: true, workload: true, shared: true, terms: true },
+  sections: { cover: true, summary: true, breakdown: true, workload: true, shared: true, terms: true, signatures: true },
   columns: { hours: true, cost: true, rate: false, storyPoints: true, assignee: true, status: false, tags: false },
   maxDepth: null,
   subtotalDepth: 2,
   pageSize: 'A4',
   landscape: false,
   openAfterExport: true,
-  descriptions: 'section'
+  descriptions: 'section',
+  initials: true
 }
 
-const SECTIONS: ReadonlyArray<keyof ReportSections> = ['cover', 'summary', 'breakdown', 'workload', 'shared', 'terms']
+const SECTIONS: ReadonlyArray<keyof ReportSections> = ['cover', 'summary', 'breakdown', 'workload', 'shared', 'terms', 'signatures']
 
 const COLUMNS: ReadonlyArray<keyof ReportColumns> = ['hours', 'cost', 'rate', 'storyPoints', 'assignee', 'status', 'tags']
 
@@ -47,6 +49,12 @@ export function ExportPdfDialog({ projectId, onClose }: { projectId: string; onC
   // Saved options are completed with the initial values (options added in later versions).
   const [options, setOptions] = useState<ReportOptions>(() => ({ ...INITIAL, ...saved, language: saved?.language ?? language }))
   const openState = useProject((s) => (s.id === projectId ? s.state : null))
+  // The contract model of the project, for the hint under the terms (same rule as the PDF).
+  const library = useSettings((s) => s.settings)
+  const contractModel =
+    openState && library
+      ? chooseContractModel(library.contractModels, library.defaultContractModelId, openState.meta.quote.contractModelId)
+      : null
   const described = useMemo(
     () => (openState ? [...openState.tasks.values()].filter((task) => task.description.trim() !== '').length : null),
     [openState]
@@ -103,10 +111,33 @@ export function ExportPdfDialog({ projectId, onClose }: { projectId: string; onC
         <div className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.export.sectionsTitle}</h3>
           {SECTIONS.map((k) => (
-            <Check key={k} checked={options.sections[k]} onChange={(v) => set({ sections: { ...options.sections, [k]: v } })}>
-              {t.export.sections[k]}
-            </Check>
+            <div key={k} className="flex flex-col">
+              <Check checked={options.sections[k]} onChange={(v) => set({ sections: { ...options.sections, [k]: v } })}>
+                {t.export.sections[k]}
+              </Check>
+              {k === 'terms' && openState ? (
+                <p className="pl-6 text-xs text-muted-foreground">
+                  {contractModel ? t.export.termsModel(contractModel.name) : t.export.termsNoModel}
+                </p>
+              ) : null}
+            </div>
           ))}
+          <div className="flex flex-col gap-1 pl-6">
+            <p className="text-xs text-muted-foreground">{t.export.signaturesHint}</p>
+            <label className={cn('flex items-center gap-2 text-sm', !options.sections.signatures && 'opacity-50')}>
+              <input
+                type="checkbox"
+                checked={options.initials}
+                disabled={!options.sections.signatures}
+                onChange={(e) => set({ initials: e.target.checked })}
+                className="size-4 accent-[var(--primary)]"
+              />
+              {t.export.initials}
+            </label>
+            {options.sections.signatures && openState && !openState.meta.quote.number ? (
+              <p className="text-xs text-warning">{t.export.noQuoteNumber}</p>
+            ) : null}
+          </div>
         </div>
         <div className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.export.columnsTitle}</h3>

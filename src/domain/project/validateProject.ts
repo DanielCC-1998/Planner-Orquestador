@@ -4,7 +4,22 @@ import { ok, type DomainError, type Result } from '../common/primitives'
 import { has, HEX_COLOR, invalid, isNonNegInt, isValidHoursPerDay, MAX_RATE_CENTS } from '../common/validation'
 import { validatePointScale } from '../estimation/pointScale'
 import { validateSprintSettings } from '../progress/sprints'
-import { MAX_PROJECT_NAME_LENGTH, type MetaPatch, type QuoteInfo } from './Project'
+import { MAX_CONTRACT_MODEL_ID_LENGTH, MAX_PROJECT_NAME_LENGTH, PARTY_FIELD_LIMITS, type ContractParty, type MetaPatch, type QuoteInfo } from './Project'
+
+/** A party of the contract with its fields trimmed; null if one is not text or is too long. */
+function cleanParty(value: unknown): ContractParty | null {
+  if (typeof value !== 'object' || value === null) return null
+  const source = value as Record<string, unknown>
+  const out = {} as { -readonly [K in keyof ContractParty]: string }
+  for (const key of Object.keys(PARTY_FIELD_LIMITS) as (keyof ContractParty)[]) {
+    const field = source[key]
+    if (typeof field !== 'string') return null
+    const text = field.trim()
+    if (text.length > PARTY_FIELD_LIMITS[key]) return null
+    out[key] = text
+  }
+  return out
+}
 
 /** Validates and normalizes the general details of the project. */
 export function validateMetaPatch(patch: MetaPatch): Result<MetaPatch, DomainError> {
@@ -95,11 +110,20 @@ export function validateMetaPatch(patch: MetaPatch): Result<MetaPatch, DomainErr
       return invalid('Invalid validity period', 'INVALID_VALIDITY')
     }
     if (String(q.terms ?? '').length > 20_000) return invalid('The terms are too long', 'TERMS_TOO_LONG')
+    const client = cleanParty(q.client)
+    if (!client) return invalid('Invalid details of the client', 'INVALID_QUOTE')
+    // Only its shape: whether the model exists is up to the library of the settings.
+    const model = q.contractModelId
+    if (model !== null && (typeof model !== 'string' || model.length === 0 || model.length > MAX_CONTRACT_MODEL_ID_LENGTH)) {
+      return invalid('Invalid contract model', 'INVALID_QUOTE')
+    }
     out.quote = {
       number: String(q.number ?? '').trim(),
       date: q.date,
       validityDays: q.validityDays,
-      terms: String(q.terms ?? '')
+      terms: String(q.terms ?? ''),
+      client,
+      contractModelId: model
     }
   }
   if (has(patch, 'archived')) out.archived = Boolean(patch.archived)

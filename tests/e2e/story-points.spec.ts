@@ -88,6 +88,6 @@ test('hours from story points: a scale per project, exceptions and typed hours t
   const projects = join(dataDir, 'projects')
   const file = readdirSync(projects).find((f) => f.endsWith('.json'))!
   const saved = JSON.parse(readFileSync(join(projects, file), 'utf8'))
-  expect(saved.schemaVersion).toBe(3)
+  expect(saved.schemaVersion).toBe(4)
   expect(saved.meta.pointScale).toEqual({ minutesPerPoint: 120, overrides: [{ points: 5, minutes: 480 }] })
 })

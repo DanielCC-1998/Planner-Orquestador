@@ -40,10 +40,47 @@ const CREATED = '2026-08-05T09:00:00.000Z'
 const ISSUER = {
   name: 'North Studio Ltd.',
   taxId: 'GB 123 4567 89',
+  taxIdLabel: 'VAT no.',
   address: '1 High Street, London',
   email: 'hello@northstudio.example',
   phone: '+44 20 0000 0000',
-  website: 'northstudio.example'
+  website: 'northstudio.example',
+  // Who signs the quotes.
+  signerName: 'Emma North',
+  signerId: 'Passport 123456789',
+  signerRole: 'Director'
+}
+
+/** The library of contracts: one model per country (the first is the default one) and saved texts. */
+const LIBRARY = {
+  contractModels: [
+    {
+      id: '6f1d2c3b-0000-4000-8000-000000000001',
+      name: 'England and Wales',
+      governingLaw: 'England and Wales',
+      courts: 'London',
+      generalTerms: [
+        '1. Contract documents. This quote, its task breakdown and its terms are the whole agreement between the parties.',
+        '2. Independent parties. The provider works as an independent professional: there is no employment relationship.',
+        '3. Confidentiality. Each party keeps confidential the information of the other it learns during the project.',
+        '4. Changes. Any change of scope, price or dates is agreed in writing; an email from each party is enough.',
+        '5. Signing. The parties may sign on paper, in two copies with their initials on every page, or electronically.'
+      ].join('\n\n')
+    },
+    {
+      id: '6f1d2c3b-0000-4000-8000-000000000002',
+      name: 'Spain',
+      governingLaw: 'Spain',
+      courts: 'Madrid',
+      generalTerms: '1. Contract documents. This quote, its breakdown and its terms are the whole agreement.'
+    }
+  ],
+  defaultContractModelId: '6f1d2c3b-0000-4000-8000-000000000001',
+  savedTexts: [
+    { id: '6f1d2c3b-0000-4000-8000-000000000011', name: 'Billing per sprint', text: 'Billing. 30% on signature; the rest at the end of each sprint, by the hours worked.' },
+    { id: '6f1d2c3b-0000-4000-8000-000000000012', name: 'Third-party services', text: 'Third-party services. Hosting, domains and paid APIs are paid by the client.' },
+    { id: '6f1d2c3b-0000-4000-8000-000000000013', name: 'Support', text: 'Support. Includes 3 months of support after the delivery.' }
+  ]
 }
 
 const PROJECTS = [
@@ -188,7 +225,18 @@ const PROJECTS = [
         number: 'Q-2026-014',
         date: '2026-09-30',
         validityDays: 30,
-        terms: 'Payment: 40% on signature, 60% on delivery.\nIncludes 3 months of support.'
+        terms: 'Payment: 40% on signature, 60% on delivery.\nIncludes 3 months of support.',
+        client: {
+          legalName: 'ACME Retail Ltd.',
+          taxId: 'GB 987 6543 21',
+          address: '22 Market Road, Leeds',
+          email: 'purchasing@acme.example',
+          signerName: 'Jordan Smith',
+          signerId: '',
+          signerRole: 'Head of Digital'
+        },
+        // The default model of the library.
+        contractModelId: null
       }
     }
   },
@@ -334,7 +382,7 @@ const seeding = await launch()
 try {
   const page = await seeding.firstWindow()
   await page.waitForLoadState('domcontentloaded')
-  await page.evaluate((issuer) => globalThis.planner.invoke('settings.set', { issuer }), ISSUER)
+  await page.evaluate(([issuer, library]) => globalThis.planner.invoke('settings.set', { issuer, ...library }), [ISSUER, LIBRARY])
   const ids = []
   for (const spec of PROJECTS) ids.push(await page.evaluate(seedProject, spec))
   await seeding.close()
@@ -398,11 +446,23 @@ try {
   await shot('story-points')
   await page.getByRole('dialog').getByRole('tab', { name: 'Sprints' }).click()
   await shot('sprints')
+  // The contract of the project: its model of the library, the client and the saved texts to insert.
+  await page.getByRole('dialog').getByRole('tab', { name: 'Contract', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: 'Insert saved text' }).click()
+  await page.getByRole('menuitem', { name: 'Billing per sprint' }).waitFor()
+  await shot('project-contract')
+  await page.keyboard.press('Escape')
   await page.getByRole('button', { name: 'Cancel' }).click()
 
   await page.getByRole('button', { name: 'Tags', exact: true }).click()
   await shot('tags-dialog')
   await page.getByRole('button', { name: 'Done' }).click()
+
+  // Settings: the general terms of every quote, and the law and courts of the contracts.
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByRole('dialog').getByRole('tab', { name: 'Contract' }).click()
+  await shot('settings-contract')
+  await page.getByRole('button', { name: 'Cancel' }).click()
 
   await page.getByRole('tab', { name: 'Tree' }).click()
   await invoke('settings.set', { theme: 'dark' })
@@ -449,7 +509,15 @@ try {
   // The "Task status" section alone, to preview its first page: every other section off.
   const progressPdf = join(temp, 'progress.pdf')
   await page.getByRole('button', { name: 'Export PDF' }).click()
-  for (const section of ['Cover', 'Summary and budget', 'Task breakdown (WBS)', 'Team and workload', 'Shared subtasks appendix', 'Terms']) {
+  for (const section of [
+    'Cover',
+    'Summary and budget',
+    'Task breakdown (WBS)',
+    'Team and workload',
+    'Shared subtasks appendix',
+    'Terms (particular and general)',
+    'Acceptance and signatures'
+  ]) {
     await exportDialog.getByLabel(section, { exact: true }).uncheck()
   }
   await exportDialog.getByLabel('Do not include').check()
@@ -457,12 +525,14 @@ try {
   await page.getByRole('button', { name: 'Save PDF…' }).click()
   await takePdf(progressPdf)
 
-  // Preview of a few pages with Chromium's PDF viewer, cropped to the sheet.
+  // Preview of a few pages with Chromium's PDF viewer, cropped to the sheet. The signatures are on the last page.
+  const pageCount = (readFileSync(PDF).toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length
   for (const [name, pdf, pageNumber] of [
     ['pdf-cover', PDF, 1],
     ['pdf-summary', PDF, 2],
     ['pdf-breakdown', PDF, 3],
-    ['pdf-progress', progressPdf, 1]
+    ['pdf-progress', progressPdf, 1],
+    ['pdf-signatures', PDF, pageCount]
   ]) {
     const png = await app.evaluate(
       async ({ BrowserWindow }, { url }) => {

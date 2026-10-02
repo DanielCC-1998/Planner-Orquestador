@@ -227,5 +227,21 @@ table.sprint td.change { white-space: nowrap; text-align: right; width: 1%; }
 .back { font-size: 7pt; font-weight: 700; color: #b91c1c; background: #fee2e2; border-radius: 6pt; padding: 0.5pt 5pt; margin-left: 5pt; }
 .quiet { font-size: 8.4pt; color: var(--muted); margin: 8pt 0 0; padding: 4pt 6pt; border-bottom: 1px solid var(--line); }
 .quiet b { color: var(--ink-2); }
+
+/* Acceptance and signatures: the parties, what they accept and room to sign; empty details are lines */
+.parties, .signs { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; }
+.parties { margin: 4pt 0 12pt; }
+.party { border: 1px solid var(--line); border-radius: 6pt; padding: 8pt 10pt; }
+.signatures .role { font-size: 7.5pt; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; margin-bottom: 4pt; }
+.party .name { display: flex; font-weight: 650; font-size: 10.5pt; margin-bottom: 3pt; }
+/* Baseline: a long value wraps under its label's line, and an empty one is a line on that baseline. */
+.signatures .row { display: flex; align-items: baseline; gap: 4pt; font-size: 8.6pt; margin-top: 4pt; }
+.signatures .row .label { flex: none; color: var(--muted); }
+.signatures .value { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.signatures .value.blank { min-height: 12pt; border-bottom: 0.75pt solid #9ca3af; }
+.acceptance, .law { margin: 0 0 8pt; }
+.signs { margin-top: 16pt; }
+.sign .space { height: 24mm; border-bottom: 1pt solid var(--ink); }
+.sign .caption { font-size: 7.5pt; color: var(--muted); margin: 2pt 0 4pt; }
 `
 }

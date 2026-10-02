@@ -39,7 +39,7 @@ export interface ReportText {
     readonly date: string
     readonly validUntil: string
     readonly plannedStart: string
-    /** Prefix of the issuer's tax id. */
+    /** Default name of the issuer's tax ID (the issuer can set theirs: RUT, NIF…). */
     readonly taxId: string
     readonly taxIncluded: (taxLabel: string) => string
     /** `formatted` is `count` already formatted for the language. */
@@ -132,7 +132,35 @@ export interface ReportText {
     readonly totalSaved: string
   }
   readonly terms: {
+    /** When there is only one kind of terms. */
     readonly title: string
+    /** Terms of the project, when the issuer has general terms too. */
+    readonly particularTitle: string
+    readonly generalTitle: string
+    /** Under the particular terms: which ones prevail. */
+    readonly precedence: string
+  }
+  /** Last page: the parties, the acceptance and room to sign. */
+  readonly signatures: {
+    readonly title: string
+    readonly provider: string
+    readonly client: string
+    /** Label of the tax ID of the client (the issuer chooses theirs). */
+    readonly clientTaxId: string
+    readonly address: string
+    readonly email: string
+    /** `amount` is null when the PDF has no amounts. */
+    readonly acceptance: (quote: { readonly number: string; readonly date: string; readonly project: string; readonly amount: string | null }) => string
+    readonly validUntil: (date: string) => string
+    readonly governingLaw: (law: string) => string
+    readonly courts: (courts: string) => string
+    readonly signature: string
+    readonly signerName: string
+    readonly signerId: string
+    readonly signerRole: string
+    readonly placeAndDate: string
+    /** Footer label of the initials boxes. */
+    readonly initials: string
   }
 }
 
@@ -162,7 +190,7 @@ export const REPORT_TEXT: Readonly<Record<Language, ReportText>> = {
       date: 'Date',
       validUntil: 'Valid until',
       plannedStart: 'Planned start',
-      taxId: 'Tax ID:',
+      taxId: 'Tax ID',
       taxIncluded: (taxLabel) => `${taxLabel} included`,
       taskCount: (count, formatted) => (count === 1 ? `${formatted} task` : `${formatted} tasks`),
       estimatedEnd: (date) => `Estimated end: ${date}`
@@ -251,7 +279,32 @@ export const REPORT_TEXT: Readonly<Record<Language, ReportText>> = {
       totalSaved: 'Total saved by not double-counting'
     },
     terms: {
-      title: 'Terms'
+      title: 'Terms',
+      particularTitle: 'Particular terms',
+      generalTitle: 'General terms',
+      precedence:
+        'Whatever these particular terms do not cover is governed by the general terms below; if they contradict each other, these particular terms prevail.'
+    },
+    signatures: {
+      title: 'Acceptance and signatures',
+      provider: 'Provider',
+      client: 'Client',
+      clientTaxId: 'Tax ID',
+      address: 'Address',
+      email: 'Email',
+      acceptance: ({ number, date, project, amount }) =>
+        `The parties accept quote${number ? ` no. ${number}` : ''} dated ${date} for the project “${project}”: the scope in the task breakdown${
+          amount ? `, the amount of ${amount}` : ''
+        } and the terms of this document.`,
+      validUntil: (date) => `The offer is valid until ${date}.`,
+      governingLaw: (law) => `This agreement is governed by the laws of ${law}.`,
+      courts: (courts) => `The parties submit any dispute arising from it to the courts of ${courts}.`,
+      signature: 'Signature',
+      signerName: 'Name',
+      signerId: 'ID document',
+      signerRole: 'Position',
+      placeAndDate: 'Place and date',
+      initials: 'Initials'
     }
   },
   // i18n:es-start
@@ -280,7 +333,7 @@ export const REPORT_TEXT: Readonly<Record<Language, ReportText>> = {
       date: 'Fecha',
       validUntil: 'Válida hasta',
       plannedStart: 'Inicio previsto',
-      taxId: 'NIF/CIF:',
+      taxId: 'NIF/CIF',
       taxIncluded: (taxLabel) => `${taxLabel} incluido`,
       taskCount: (count, formatted) => (count === 1 ? `${formatted} tarea` : `${formatted} tareas`),
       estimatedEnd: (date) => `Fin previsto: ${date}`
@@ -369,7 +422,32 @@ export const REPORT_TEXT: Readonly<Record<Language, ReportText>> = {
       totalSaved: 'Ahorro total por no duplicar'
     },
     terms: {
-      title: 'Condiciones'
+      title: 'Condiciones',
+      particularTitle: 'Condiciones particulares',
+      generalTitle: 'Condiciones generales',
+      precedence:
+        'En lo que no prevean estas condiciones particulares rigen las condiciones generales que siguen; si se contradicen, prevalecen las particulares.'
+    },
+    signatures: {
+      title: 'Aceptación y firmas',
+      provider: 'Proveedor',
+      client: 'Cliente',
+      clientTaxId: 'Identificación fiscal',
+      address: 'Domicilio',
+      email: 'Correo',
+      acceptance: ({ number, date, project, amount }) =>
+        `Las partes aceptan el presupuesto${number ? ` nº ${number}` : ''} de fecha ${date} para el proyecto «${project}»: el alcance del desglose de tareas${
+          amount ? `, el importe de ${amount}` : ''
+        } y las condiciones de este documento.`,
+      validUntil: (date) => `La oferta es válida hasta el ${date}.`,
+      governingLaw: (law) => `Este contrato se rige por las leyes de ${law}.`,
+      courts: (courts) => `Para cualquier controversia que derive de él, las partes se someten a los juzgados y tribunales de ${courts}.`,
+      signature: 'Firma',
+      signerName: 'Aclaración',
+      signerId: 'Documento',
+      signerRole: 'Cargo',
+      placeAndDate: 'Lugar y fecha',
+      initials: 'Iniciales'
     }
   }
   // i18n:es-end

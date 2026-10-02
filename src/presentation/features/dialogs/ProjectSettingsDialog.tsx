@@ -1,15 +1,28 @@
 import { useId, useState } from 'react'
-import { AlertTriangle } from 'lucide-react'
-import { CURRENCIES, PALETTE, sprintAnchor, SPRINT_UNITS, type MetaPatch, type SprintUnit } from '@domain'
+import { AlertTriangle, BookmarkPlus, TextQuote } from 'lucide-react'
+import {
+  chooseContractModel,
+  CURRENCIES,
+  PALETTE,
+  PARTY_FIELD_LIMITS,
+  sprintAnchor,
+  SPRINT_UNITS,
+  type ContractParty,
+  type MetaPatch,
+  type SprintUnit
+} from '@domain'
+import { appendClause, LIBRARY_LIMITS, splitClauses } from '@shared/terms'
 import { localDateOf, localIsoDate } from '@shared/time'
 import { Button } from '../../components/ui/button'
 import { Dialog } from '../../components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../../components/ui/menu'
 import { Field, Input, NativeSelect, Textarea } from '../../components/ui/input'
 import { Segmented, Tooltip } from '../../components/ui/misc'
 import { useI18n } from '../../i18n'
 import { errorText } from '../../i18n/errors'
 import { cn } from '../../lib/cn'
 import { useProject } from '../../stores/project'
+import { useSettings } from '../../stores/settings'
 import { toast } from '../../stores/toasts'
 import { draftFromScale, draftRows, ruleOfThree, scaleFromDraft, type DraftError, type PointScaleDraft } from './pointScaleDraft'
 import { currentSprint, draftFromSprints, SPRINT_PRESETS, sprintsFromDraft, type SprintsDraft } from './sprintsDraft'
@@ -24,7 +37,18 @@ const WEEKDAYS = [
   { value: 7, key: 'sun' }
 ] as const
 
-type Tab = 'general' | 'planning' | 'points' | 'sprints' | 'quote'
+type Tab = 'general' | 'planning' | 'points' | 'sprints' | 'quote' | 'contract'
+
+/** Fields of the client in the contract, in the order of the form ('wide' takes two columns). */
+const PARTY_FIELDS: ReadonlyArray<{ readonly key: keyof ContractParty; readonly wide?: boolean }> = [
+  { key: 'legalName', wide: true },
+  { key: 'taxId' },
+  { key: 'address', wide: true },
+  { key: 'email' },
+  { key: 'signerName' },
+  { key: 'signerId' },
+  { key: 'signerRole' }
+]
 
 /** Project settings. Everything is saved with a single command (a single undo step). */
 export function ProjectSettingsDialog({ onClose }: { onClose: () => void }) {
@@ -50,6 +74,41 @@ export function ProjectSettingsDialog({ onClose }: { onClose: () => void }) {
   const [quoteDate, setQuoteDate] = useState(meta.quote.date ?? '')
   const [validity, setValidity] = useState(meta.quote.validityDays === null ? '' : String(meta.quote.validityDays))
   const [terms, setTerms] = useState(meta.quote.terms)
+  const [clientParty, setClientParty] = useState<ContractParty>(meta.quote.client)
+  const [contractModelId, setContractModelId] = useState<string | null>(meta.quote.contractModelId)
+  // The library of contracts lives in the settings: models (general terms, law and courts) and saved texts.
+  const settings = useSettings((s) => s.settings)
+  const updateSettings = useSettings((s) => s.update)
+  const models = settings?.contractModels ?? []
+  const savedTexts = settings?.savedTexts ?? []
+  const defaultModel = models.find((m) => m.id === settings?.defaultContractModelId) ?? null
+  const chosenModelExists = contractModelId !== null && models.some((m) => m.id === contractModelId)
+  // A model deleted from the library: the project uses the default one (known once the settings are loaded).
+  const modelMissing = settings !== null && contractModelId !== null && !chosenModelExists
+  const effectiveModel = chooseContractModel(models, settings?.defaultContractModelId ?? null, contractModelId)
+
+  /** Adds texts to the library of the settings right away (it is shared by every project), skipping repeated ones. */
+  const saveToLibrary = async (entries: ReadonlyArray<{ readonly name: string; readonly text: string }>) => {
+    const current = useSettings.getState().settings?.savedTexts ?? []
+    const known = new Set(current.map((saved) => saved.text.trim()))
+    const fresh = entries.filter((entry) => {
+      const text = entry.text.trim()
+      if (!text || known.has(text)) return false
+      known.add(text)
+      return true
+    })
+    if (fresh.length === 0) {
+      toast.success(t.projectSettings.contract.nothingNew)
+      return
+    }
+    if (current.length + fresh.length > LIBRARY_LIMITS.texts) {
+      toast.error(t.projectSettings.contract.libraryFull)
+      return
+    }
+    const added = fresh.map((entry) => ({ id: crypto.randomUUID(), name: entry.name.slice(0, LIBRARY_LIMITS.name), text: entry.text.trim() }))
+    await updateSettings({ savedTexts: [...current, ...added] })
+    toast.success(t.projectSettings.contract.saved(added.length))
+  }
   const [pointDraft, setPointDraft] = useState<PointScaleDraft>(() => draftFromScale(meta.pointScale))
   const [sprintDraft, setSprintDraft] = useState<SprintsDraft>(() => draftFromSprints(meta.sprints))
   const weekdaysLabelId = useId()
@@ -115,7 +174,15 @@ export function ProjectSettingsDialog({ onClose }: { onClose: () => void }) {
       taxLabel: taxLabel.trim(),
       pointScale: scale.scale,
       sprints: sprints.settings,
-      quote: { number: quoteNumber.trim(), date: quoteDate || null, validityDays, terms }
+      quote: {
+        number: quoteNumber.trim(),
+        date: quoteDate || null,
+        validityDays,
+        terms,
+        client: clientParty,
+        // A model deleted from the library is forgotten: the project goes back to the default one.
+        contractModelId: modelMissing ? null : contractModelId
+      }
     }
     const delta = await dispatch({ type: 'project.update', patch })
     if (delta) {
@@ -150,7 +217,8 @@ export function ProjectSettingsDialog({ onClose }: { onClose: () => void }) {
           { value: 'planning', label: t.projectSettings.tabs.planning },
           { value: 'points', label: t.projectSettings.tabs.points },
           { value: 'sprints', label: t.projectSettings.tabs.sprints },
-          { value: 'quote', label: t.projectSettings.tabs.quote }
+          { value: 'quote', label: t.projectSettings.tabs.quote },
+          { value: 'contract', label: t.projectSettings.tabs.contract }
         ]}
       />
       {/* A read-only project (from a newer version of the app) can be looked at, not changed. */}
@@ -409,9 +477,90 @@ export function ProjectSettingsDialog({ onClose }: { onClose: () => void }) {
             <Field label={t.projectSettings.validity} error={errors.validity}>
               <Input value={validity} onChange={(e) => setValidity(e.target.value)} inputMode="numeric" placeholder="30" />
             </Field>
-            <Field label={t.projectSettings.terms} className="col-span-3" hint={t.projectSettings.termsHint}>
-              <Textarea value={terms} onChange={(e) => setTerms(e.target.value)} className="min-h-40" />
-            </Field>
+          </div>
+        ) : null}
+        {tab === 'contract' ? (
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-3 flex flex-col gap-1">
+              <Field label={t.projectSettings.contract.model} hint={t.projectSettings.contract.modelHint}>
+                <NativeSelect value={chosenModelExists ? contractModelId! : ''} onChange={(e) => setContractModelId(e.target.value || null)}>
+                  <option value="">{t.projectSettings.contract.defaultModel(defaultModel?.name ?? null)}</option>
+                  {models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </Field>
+              <p className="text-xs text-muted-foreground">
+                {effectiveModel
+                  ? [
+                      effectiveModel.governingLaw.trim() && `${t.projectSettings.contract.law}: ${effectiveModel.governingLaw.trim()}`,
+                      effectiveModel.courts.trim() && `${t.projectSettings.contract.courts}: ${effectiveModel.courts.trim()}`
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || t.projectSettings.contract.noLaw
+                  : t.projectSettings.contract.noModel}
+              </p>
+              {modelMissing ? <p className="text-xs text-warning">{t.projectSettings.contract.missingModel}</p> : null}
+            </div>
+            <fieldset className="col-span-3 grid grid-cols-3 gap-3 rounded-lg border p-3">
+              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t.projectSettings.contract.title}</legend>
+              <p className="col-span-3 text-xs text-muted-foreground">{t.projectSettings.contract.hint}</p>
+              {PARTY_FIELDS.map(({ key, wide }) => (
+                <Field key={key} label={t.projectSettings.contract.fields[key]} className={wide ? 'col-span-2' : undefined}>
+                  <Input
+                    value={clientParty[key]}
+                    maxLength={PARTY_FIELD_LIMITS[key]}
+                    // Without a company name, the PDF uses the client of the General tab.
+                    placeholder={key === 'legalName' ? client.trim() : undefined}
+                    onChange={(e) => setClientParty((p) => ({ ...p, [key]: e.target.value }))}
+                  />
+                </Field>
+              ))}
+            </fieldset>
+            <div className="col-span-3 flex flex-col gap-1">
+              <div className="flex items-end justify-between gap-2">
+                <span className="text-xs font-medium text-muted-foreground">{t.projectSettings.terms}</span>
+                <div className="flex gap-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <TextQuote /> {t.projectSettings.contract.insert}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+                      {savedTexts.length === 0 ? (
+                        <DropdownMenuItem disabled>{t.projectSettings.contract.noTexts}</DropdownMenuItem>
+                      ) : (
+                        savedTexts.map((saved) => (
+                          <DropdownMenuItem key={saved.id} onSelect={() => setTerms((current) => appendClause(current, saved.text))}>
+                            {saved.name}
+                          </DropdownMenuItem>
+                        ))
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" disabled={!terms.trim()}>
+                        <BookmarkPlus /> {t.projectSettings.contract.saveToLibrary}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onSelect={() => void saveToLibrary([{ name: t.projectSettings.contract.wholeName(name.trim() || meta.name), text: terms.trim() }])}
+                      >
+                        {t.projectSettings.contract.saveWhole}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => void saveToLibrary(splitClauses(terms))}>{t.projectSettings.contract.saveClauses}</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+              <Textarea aria-label={t.projectSettings.terms} value={terms} onChange={(e) => setTerms(e.target.value)} className="min-h-48" />
+              <span className="text-xs text-muted-foreground">{t.projectSettings.termsHint}</span>
+            </div>
           </div>
         ) : null}
       </fieldset>

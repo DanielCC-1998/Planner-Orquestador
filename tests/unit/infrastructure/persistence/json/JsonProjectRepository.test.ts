@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { estimate, toProjectData } from '@domain'
+import { EMPTY_PARTY, estimate, toProjectData } from '@domain'
 import { loginSignupScenario, run } from '@tests/support/builders'
 import { CURRENT_SCHEMA_VERSION, decodeProject, encodeProject, jsonProjectSerializer } from '@infrastructure/persistence/json/codec'
 import { JsonProjectRepository } from '@infrastructure/persistence/json/JsonProjectRepository'
@@ -341,5 +341,51 @@ describe('codec: format version 3 (status history, sprints, project tags)', () =
     expect(back.tasks.get(ids.form)!.tagIds).toEqual([tagged.id])
     expect(back.tasks.get(ids.form)!.statusHistory).toEqual([{ at: '2026-03-01T08:00:00.000Z', from: 'todo', to: 'done' }])
     expect(back.tasks.get(ids.table)).toMatchObject({ statusHistory: [], tagIds: [] })
+  })
+})
+
+describe('codec: format version 4 (the client as a party of the contract)', () => {
+  it('a version 3 file is migrated with the client of the contract empty', () => {
+    const { state } = loginSignupScenario()
+    const doc = JSON.parse(encodeProject(state))
+    doc.schemaVersion = 3
+    delete doc.meta.quote.client
+    const decoded = decodeProject(JSON.stringify(doc))
+    expect(decoded.ok).toBe(true)
+    if (!decoded.ok) return
+    expect(decoded.value.migratedFrom).toBe(3)
+    expect(decoded.value.state.meta.quote).toEqual({ ...state.meta.quote, client: EMPTY_PARTY })
+  })
+
+  it('the client of the contract is saved with the project and read back', () => {
+    const { state } = loginSignupScenario()
+    const client = { ...EMPTY_PARTY, legalName: 'ACME Ltd.', taxId: 'B-12345678', signerName: 'Ana Ruiz', signerRole: 'CEO' }
+    const signed = run(state, { type: 'project.update', patch: { quote: { ...state.meta.quote, client } } }).state
+    expect(JSON.parse(encodeProject(signed))).toMatchObject({ schemaVersion: 4, meta: { quote: { client } } })
+    const decoded = decodeProject(encodeProject(signed))
+    expect(decoded.ok && decoded.value.state.meta.quote.client).toEqual(client)
+  })
+})
+
+describe('codec: the contract model of the quote', () => {
+  it('a version 3 file uses the default model; one of format 4 without it, or with a broken id, too', () => {
+    const { state } = loginSignupScenario()
+    const doc = JSON.parse(encodeProject(state))
+    delete doc.meta.quote.contractModelId
+    const v3 = decodeProject(JSON.stringify({ ...doc, schemaVersion: 3, meta: { ...doc.meta, quote: { ...doc.meta.quote, client: undefined } } }))
+    expect(v3.ok && v3.value.state.meta.quote.contractModelId).toBeNull()
+    const early = decodeProject(JSON.stringify(doc))
+    expect(early.ok && early.value.state.meta.quote.contractModelId).toBeNull()
+    doc.meta.quote.contractModelId = 'not an id'
+    const broken = decodeProject(JSON.stringify(doc))
+    expect(broken.ok && broken.value.state.meta.quote.contractModelId).toBeNull()
+  })
+
+  it('the chosen model is saved with the project and read back', () => {
+    const { state } = loginSignupScenario()
+    const contractModelId = '00000000-0000-4000-8000-000000000001'
+    const chosen = run(state, { type: 'project.update', patch: { quote: { ...state.meta.quote, contractModelId } } }).state
+    const decoded = decodeProject(encodeProject(chosen))
+    expect(decoded.ok && decoded.value.state.meta.quote.contractModelId).toBe(contractModelId)
   })
 })

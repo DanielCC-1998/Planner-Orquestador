@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_REPORT_OPTIONS } from '@application'
-import { CommandInputSchema } from '@infrastructure/ipc/inputSchemas'
-import { PointScaleSchema, ReportOptionsSchema } from '@infrastructure/validation/schemas'
+import { DEFAULT_REPORT_OPTIONS, DEFAULT_SETTINGS, EMPTY_ISSUER, mergeSettings } from '@application'
+import { EMPTY_PARTY } from '@domain'
+import { CommandInputSchema, SettingsPatchSchema } from '@infrastructure/ipc/inputSchemas'
+import { PointScaleSchema, ReportOptionsSchema, SettingsSchema } from '@infrastructure/validation/schemas'
 
 describe('ReportOptionsSchema', () => {
   it('options saved before `descriptions` existed are still valid and use the separate section', () => {
@@ -80,5 +81,62 @@ describe('IPC input of sprints and tags', () => {
     expect(command({ type: 'tag.assign', ids: [id], tagId: 'tag-1', assigned: true })).toBe(true)
     expect(command({ type: 'task.update', id, patch: { tagIds: ['tag-1'] } })).toBe(true)
     expect(command({ type: 'task.update', id, patch: { tags: ['Design'] } })).toBe(false)
+  })
+})
+
+describe('the quote as a contract: stored options, settings and the IPC input', () => {
+  const id = '00000000-0000-4000-8000-000000000001'
+  const command = (command: unknown) => CommandInputSchema.safeParse({ id, command }).success
+
+  it('options saved before the quote could be signed get the signatures page with the initials', () => {
+    const { signatures: _signatures, ...sections } = DEFAULT_REPORT_OPTIONS.sections
+    const { initials: _initials, ...legacy } = DEFAULT_REPORT_OPTIONS
+    const parsed = ReportOptionsSchema.safeParse({ ...legacy, sections })
+    expect(parsed.success && [parsed.data.sections.signatures, parsed.data.initials]).toEqual([true, true])
+  })
+
+  it('settings saved before have the contract fields of the issuer empty', () => {
+    const issuer = { name: 'Studio', taxId: 'B-1', address: '', email: '', phone: '', website: '', logoDataUrl: null }
+    const parsed = SettingsSchema.safeParse({ theme: 'light', language: 'es', issuer, reportOptions: {} })
+    expect(parsed.success && parsed.data.issuer).toEqual({ ...EMPTY_ISSUER, name: 'Studio', taxId: 'B-1' })
+  })
+
+  it('changing some fields of the issuer keeps the others: the patch has no defaults', () => {
+    const patch = SettingsPatchSchema.parse({ issuer: { name: 'Studio' } })
+    expect(patch.issuer).toEqual({ name: 'Studio' })
+    const current = { ...DEFAULT_SETTINGS, issuer: { ...EMPTY_ISSUER, taxIdLabel: 'RUT', signerName: 'Emma North' } }
+    expect(mergeSettings(current, patch).issuer).toMatchObject({ name: 'Studio', taxIdLabel: 'RUT', signerName: 'Emma North' })
+    expect(SettingsPatchSchema.safeParse({ issuer: { signature: 'x' } }).success).toBe(false)
+  })
+
+  it('project.update carries the whole quote with the client of the contract', () => {
+    const quote = { number: 'P-1', date: null, validityDays: 30, terms: '', client: { ...EMPTY_PARTY, legalName: 'ACME Ltd.' }, contractModelId: null }
+    expect(command({ type: 'project.update', patch: { quote } })).toBe(true)
+    const { client: _client, ...withoutClient } = quote
+    expect(command({ type: 'project.update', patch: { quote: withoutClient } })).toBe(false)
+    expect(command({ type: 'project.update', patch: { quote: { ...quote, client: { ...EMPTY_PARTY, taxId: 'x'.repeat(51) } } } })).toBe(false)
+  })
+})
+
+describe('IPC input of the library of contracts', () => {
+  const uruguay = { id: '00000000-0000-4000-8000-000000000001', name: 'Uruguay', governingLaw: 'Uruguay', courts: 'Paysandu', generalTerms: '1. Terms.' }
+  const billing = { id: '00000000-0000-4000-8000-000000000011', name: 'Billing', text: 'Billing. Per sprint.' }
+
+  it('settings.set replaces the models, the default one and the saved texts; strict objects', () => {
+    expect(SettingsPatchSchema.safeParse({ contractModels: [uruguay], defaultContractModelId: uruguay.id, savedTexts: [billing] }).success).toBe(true)
+    expect(SettingsPatchSchema.safeParse({ defaultContractModelId: null }).success).toBe(true)
+    expect(SettingsPatchSchema.safeParse({ contractModels: [{ ...uruguay, country: 'UY' }] }).success).toBe(false)
+    expect(SettingsPatchSchema.safeParse({ savedTexts: [{ ...billing, name: '  ' }] }).success).toBe(false)
+    expect(SettingsPatchSchema.safeParse({ contractModels: [{ ...uruguay, id: 'uruguay' }] }).success).toBe(false)
+  })
+
+  it('project.update carries the contract model of the quote: an id or null (the default one)', () => {
+    const id = '00000000-0000-4000-8000-000000000099'
+    const quote = (contractModelId: unknown) => ({ number: '', date: null, validityDays: 30, terms: '', client: EMPTY_PARTY, contractModelId })
+    const update = (contractModelId: unknown) =>
+      CommandInputSchema.safeParse({ id, command: { type: 'project.update', patch: { quote: quote(contractModelId) } } }).success
+    expect(update(uruguay.id)).toBe(true)
+    expect(update(null)).toBe(true)
+    expect(update('uruguay')).toBe(false)
   })
 })

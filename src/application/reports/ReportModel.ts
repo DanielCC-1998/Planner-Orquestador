@@ -1,5 +1,5 @@
-import type { ChangeDirection, Language, MoneyBreakdown, SprintSettings, TagColor, TaskStatus } from '@domain'
-import type { Issuer } from '../settings/Settings'
+import type { ChangeDirection, ContractParty, Language, MoneyBreakdown, SprintSettings, TagColor, TaskStatus } from '@domain'
+import type { ContractModel, Issuer } from '../settings/Settings'
 
 export interface ReportSections {
   readonly cover: boolean
@@ -7,7 +7,10 @@ export interface ReportSections {
   readonly breakdown: boolean
   readonly workload: boolean
   readonly shared: boolean
+  /** Particular terms of the project and general terms of the issuer. */
   readonly terms: boolean
+  /** Last page: the parties, the acceptance, the governing law and room for both signatures. */
+  readonly signatures: boolean
 }
 
 export interface ReportColumns {
@@ -39,6 +42,8 @@ export interface ReportOptions {
   readonly openAfterExport: boolean
   /** 'inline': under each task of the breakdown; 'section': a separate "Task details" section. */
   readonly descriptions: DescriptionPlacement
+  /** With the signatures page: boxes in the footer of every page for the initials of both parties. */
+  readonly initials: boolean
 }
 
 /**
@@ -49,14 +54,15 @@ export type StoredReportOptions = Omit<ReportOptions, 'language'> & { readonly l
 
 export const DEFAULT_REPORT_OPTIONS: ReportOptions = {
   language: 'en',
-  sections: { cover: true, summary: true, breakdown: true, workload: true, shared: true, terms: true },
+  sections: { cover: true, summary: true, breakdown: true, workload: true, shared: true, terms: true, signatures: true },
   columns: { hours: true, cost: true, rate: false, storyPoints: true, assignee: true, status: false, tags: false },
   maxDepth: null,
   subtotalDepth: 2,
   pageSize: 'A4',
   landscape: false,
   openAfterExport: true,
-  descriptions: 'section'
+  descriptions: 'section',
+  initials: true
 }
 
 /** A tag as printed: its name and the key of its color. */
@@ -183,6 +189,8 @@ export interface ReportModel {
   readonly generatedAt: string
   readonly options: ReportOptions
   readonly issuer: Issuer
+  /** Contract model the quote is signed under (general terms, law and courts); null = none. */
+  readonly contract: ContractModel | null
   readonly project: {
     readonly name: string
     readonly client: string
@@ -198,6 +206,8 @@ export interface ReportModel {
     readonly quoteDate: string
     readonly validUntil: string | null
     readonly terms: string
+    /** The client as a party of the contract (its empty fields are blank lines). */
+    readonly clientParty: ContractParty
   }
   readonly summary: {
     readonly totalMinutes: number

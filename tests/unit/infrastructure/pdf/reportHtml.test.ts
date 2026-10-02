@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildReportModel, DEFAULT_REPORT_OPTIONS, EMPTY_ISSUER, type ReportOptions } from '@application'
-import { apply, LANGUAGES, type Language, type ProjectState } from '@domain'
+import { apply, EMPTY_PARTY, LANGUAGES, type Language, type ProjectState } from '@domain'
 import { loginSignupScenario, run, testContext } from '@tests/support/builders'
 import { escapeHtml, renderDescriptionHtml } from '@infrastructure/pdf/descriptionHtml'
 import { footerTemplate, renderReportHtml } from '@infrastructure/pdf/reportHtml'
@@ -81,7 +81,7 @@ describe('renderReportHtml', () => {
       taxBps: 2100,
       contingencyBps: 1000,
       client: 'ACME <Inc.>',
-      quote: { number: 'P-2026-07', date: '2026-09-30', validityDays: 30, terms: 'Payment within 30 days' }
+      quote: { number: 'P-2026-07', date: '2026-09-30', validityDays: 30, terms: 'Payment within 30 days', client: EMPTY_PARTY, contractModelId: null }
     }
   }).state
   const titleOf = (id: string) => state.tasks.get(id)!.title
@@ -338,7 +338,7 @@ describe('page breaks of the PDF', () => {
     return doc.slice(doc.indexOf('<body>'))
   }
   const withTerms = (terms: string) =>
-    run(state, { type: 'project.update', patch: { quote: { number: '', date: null, validityDays: 30, terms } } }).state
+    run(state, { type: 'project.update', patch: { quote: { number: '', date: null, validityDays: 30, terms, client: EMPTY_PARTY, contractModelId: null } } }).state
 
   it('the terms go in one block per clause (blank lines separate them), with their line breaks and indents', () => {
     const html = body(withTerms('1. Payment.\n   - 30 % upfront\n\n \n2. Warranty.\r\n\r\nAccepting the quote accepts these terms.  \n\n'))
@@ -381,5 +381,129 @@ describe('page breaks of the PDF', () => {
       ['1', '1.1', '1.2'],
       ['2', '2.2', '2.3']
     ])
+  })
+})
+
+describe('the quote as a contract', () => {
+  const { state } = loginSignupScenario()
+  const client = {
+    legalName: 'ACME <Retail> Ltd.',
+    taxId: 'B-87654321',
+    address: '22 Market Road, Leeds',
+    email: 'buy@acme.example',
+    signerName: 'Jordan Smith',
+    signerId: '',
+    signerRole: 'Head of Digital'
+  }
+  const quote = { number: 'Q-7', date: '2026-09-30', validityDays: 30, terms: '1. Payment within 30 days.', client, contractModelId: null }
+  const signed = run(state, { type: 'project.update', patch: { client: 'ACME', quote } }).state
+  const issuer = {
+    ...EMPTY_ISSUER,
+    name: 'North Studio',
+    taxId: 'GB 123',
+    taxIdLabel: 'VAT no.',
+    address: '1 High Street',
+    email: 'hi@north.example',
+    signerName: 'Emma North',
+    signerId: 'P-123'
+  }
+  /** The contract model of the project, as the report service resolves it from the library. */
+  const contract = {
+    id: '00000000-0000-4000-8000-0000000000c1',
+    name: 'England',
+    generalTerms: '1. Confidentiality.\n\n2. Signing.',
+    governingLaw: 'England and Wales',
+    courts: 'London'
+  }
+  type Contract = typeof contract
+  const modelOf = (language: Language, s: ProjectState, extra: Partial<ReportOptions>, model: Contract | null = contract, who = issuer) =>
+    buildReportModel(s, optionsIn(language, extra), who, { now: NOW, contract: model })
+  const body = (language: Language, s = signed, extra: Partial<ReportOptions> = {}, model: Contract | null = contract, who = issuer) => {
+    const doc = plain(renderReportHtml(modelOf(language, s, extra, model, who)))
+    return doc.slice(doc.indexOf('<body>'))
+  }
+  const withoutSignatures = { sections: { ...DEFAULT_REPORT_OPTIONS.sections, signatures: false } }
+  // i18n:es-start
+  const ES = {
+    title: '<h2>Aceptación y firmas</h2>',
+    client: '<div class="role">Cliente</div><div class="name"><span class="value">ACME</span></div>',
+    acceptance:
+      'Las partes aceptan el presupuesto nº Q-7 de fecha 30 de septiembre de 2026 para el proyecto «Project»: el alcance del desglose de tareas y las condiciones de este documento.',
+    signer: '<span class="label">Aclaración:</span><span class="value">Emma North</span>',
+    terms: '<h2>Condiciones</h2>',
+    general: 'Condiciones generales'
+  }
+  // i18n:es-end
+
+  it('ends with the parties, what they accept, the law and courts, and room for both signatures', () => {
+    const html = body('en')
+    expect(html).toContain('<h2>Acceptance and signatures</h2>')
+    expect(html).toContain('<div class="role">Provider</div><div class="name"><span class="value">North Studio</span></div>')
+    expect(html).toContain('<span class="label">VAT no.:</span><span class="value">GB 123</span>')
+    expect(html).toContain('<div class="role">Client</div><div class="name"><span class="value">ACME &lt;Retail&gt; Ltd.</span></div>')
+    expect(html).toContain(
+      'The parties accept quote no. Q-7 dated September 30, 2026 for the project “Project”: the scope in the task breakdown, the amount of €750.00 and the terms of this document. The offer is valid until October 30, 2026.'
+    )
+    expect(html).toContain(
+      '<p class="law">This agreement is governed by the laws of England and Wales. The parties submit any dispute arising from it to the courts of London.</p>'
+    )
+    // Empty details are lines to fill in by hand: the client's ID document and the place and date of both.
+    expect(html).toContain('<span class="label">ID document:</span><span class="value blank"></span>')
+    expect(html.match(/Place and date:<\/span><span class="value blank"><\/span>/g)).toHaveLength(2)
+    // The issuer signs without a role; the client always has the line.
+    expect(html.match(/>Position:</g)).toHaveLength(1)
+  })
+
+  it('in Spanish, with the client of the project when there is no company name, and without amounts if the PDF has none', () => {
+    const unnamed = run(signed, { type: 'project.update', patch: { quote: { ...quote, client: { ...client, legalName: '' } } } }).state
+    const html = body('es', unnamed, { columns: { ...DEFAULT_REPORT_OPTIONS.columns, cost: false } })
+    expect(html).toContain(ES.title)
+    expect(html).toContain(ES.client)
+    expect(html).toContain(ES.acceptance)
+    expect(html).toContain(ES.signer)
+    // Without law and courts in the contract model, nothing is said about them.
+    expect(body('es', signed, {}, { ...contract, governingLaw: '', courts: '' })).not.toContain('class="law"')
+  })
+
+  it('without the option there is no signatures page', () => {
+    const html = body('en', signed, withoutSignatures)
+    expect(html).not.toContain('Acceptance and signatures')
+    expect(html).not.toContain('class="sign"')
+  })
+
+  it('the particular terms come first, with the note on which prevail; with one kind only, a single "Terms" section', () => {
+    const html = body('en')
+    expect(html).toContain('<h2>Particular terms</h2>\n  <p class="small muted lead">Whatever these particular terms do not cover')
+    expect(html.indexOf('<h2>Particular terms</h2>')).toBeLessThan(html.indexOf('<h2>General terms</h2>'))
+    expect(html).toContain('<p class="pre clause">2. Signing.</p>')
+    const generalOnly = body('en', run(signed, { type: 'project.update', patch: { quote: { ...quote, terms: '' } } }).state)
+    expect(generalOnly).toContain('<h2>Terms</h2>')
+    expect(generalOnly).toContain('<p class="pre clause">1. Confidentiality.</p>')
+    expect(generalOnly).not.toContain('Particular terms')
+    const particularOnly = body('es', signed, {}, { ...contract, generalTerms: ' ' })
+    expect(particularOnly).toContain(ES.terms)
+    expect(particularOnly).not.toContain(ES.general)
+  })
+
+  it('every page names the quote and, when it is signed, has a box for the initials of each party', () => {
+    const footer = (extra: Partial<ReportOptions>) => footerTemplate(modelOf('en', signed, extra))
+    expect(footer({})).toContain('<span>North Studio · Project · Quote no. Q-7</span>')
+    expect(footer({})).toContain('Initials')
+    expect(footer({}).match(/border:0\.6px solid/g)).toHaveLength(2)
+    expect(footer({ initials: false })).not.toContain('Initials')
+    expect(footer(withoutSignatures)).not.toContain('Initials')
+  })
+
+  it('the cover shows the tax ID with the name the issuer gave it', () => {
+    expect(body('es')).toContain('VAT no.: GB 123')
+    expect(body('es', signed, {}, contract, { ...issuer, taxIdLabel: '' })).toContain('NIF/CIF: GB 123')
+  })
+
+  it('without a contract model there are only the particular terms, and nothing about law or courts', () => {
+    const html = body('en', signed, {}, null)
+    expect(html).toContain('<h2>Terms</h2>')
+    expect(html).toContain('<p class="pre clause">1. Payment within 30 days.</p>')
+    expect(html).not.toContain('General terms')
+    expect(html).not.toContain('class="law"')
   })
 })

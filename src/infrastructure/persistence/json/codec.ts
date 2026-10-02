@@ -15,7 +15,7 @@ import type { InfraErrorReason } from '@shared/ipc/errors'
 import { MemberSchema, MetaSchema, StructureSchema, TaskSchema } from '../../validation/schemas'
 
 export const PROJECT_FORMAT = 'planner.project'
-export const CURRENT_SCHEMA_VERSION = 3
+export const CURRENT_SCHEMA_VERSION = 4
 
 const ProjectDocSchema = z.object({
   format: z.literal(PROJECT_FORMAT),
@@ -69,6 +69,18 @@ function migrateTo3(doc: RawDoc): RawDoc {
 }
 
 /**
+ * 3 → 4: the quote gets the client as a party of the contract, empty (blank lines in the PDF), and
+ * the default contract model of the library.
+ */
+function migrateTo4(doc: RawDoc): RawDoc {
+  const meta = typeof doc['meta'] === 'object' && doc['meta'] !== null ? (doc['meta'] as Record<string, unknown>) : {}
+  const quote = typeof meta['quote'] === 'object' && meta['quote'] !== null ? (meta['quote'] as Record<string, unknown>) : null
+  if (!quote) return { ...doc, schemaVersion: 4 }
+  const client = { legalName: '', taxId: '', address: '', email: '', signerName: '', signerId: '', signerRole: '' }
+  return { ...doc, schemaVersion: 4, meta: { ...meta, quote: { ...quote, client, contractModelId: null } } }
+}
+
+/**
  * Format migrations: MIGRATIONS[n] turns a document of version n into version n+1.
  * When the format changes: bump CURRENT_SCHEMA_VERSION, add the migration and a test fixture.
  */
@@ -76,7 +88,8 @@ const MIGRATIONS: Record<number, (doc: RawDoc) => RawDoc> = {
   // 1 → 2: projects get a story points → hours scale, off by default. A literal on purpose:
   // a migration must keep producing the same document even if the domain defaults change.
   1: (doc) => ({ ...doc, schemaVersion: 2, meta: { ...(doc['meta'] as object), pointScale: null } }),
-  2: migrateTo3
+  2: migrateTo3,
+  3: migrateTo4
 }
 
 /**

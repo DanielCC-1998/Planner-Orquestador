@@ -3,7 +3,7 @@ import { paletteColor } from '../common/palette'
 import { domainError, err, ok, type DomainError, type IsoDateTime, type ProjectId, type Result } from '../common/primitives'
 import { TaskGraph } from '../graph/TaskGraph'
 import { DEFAULT_SPRINT_SETTINGS } from '../progress/sprints'
-import type { ProjectMeta, ProjectState } from './Project'
+import { EMPTY_PARTY, type ProjectMeta, type ProjectState } from './Project'
 import { validateMetaPatch } from './validateProject'
 
 export interface NewProjectInput {
@@ -51,7 +51,7 @@ export function createProjectState(
     pointScale: null,
     sprints: DEFAULT_SPRINT_SETTINGS,
     tags: [],
-    quote: { number: '', date: null, validityDays: 30, terms: '' },
+    quote: { number: '', date: null, validityDays: 30, terms: '', client: EMPTY_PARTY, contractModelId: null },
     archived: false,
     createdAt: now,
     updatedAt: now

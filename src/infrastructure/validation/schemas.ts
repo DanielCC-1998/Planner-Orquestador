@@ -9,6 +9,7 @@ import {
   MAX_STATUS_HISTORY,
   MAX_TAG_NAME_LENGTH,
   MAX_TAGS_PER_TASK,
+  PARTY_FIELD_LIMITS,
   PRIORITIES,
   SPRINT_UNITS,
   TASK_STATUSES,
@@ -18,6 +19,7 @@ import {
   type TaskStatus
 } from '@domain'
 import { LANGUAGE_PREFERENCES } from '@application'
+import { LIBRARY_LIMITS } from '@shared/terms'
 
 /**
  * Zod schemas shared by the adapters: they validate everything that comes in from outside
@@ -129,12 +131,27 @@ export const MemberSchema = z.object({
   hoursPerDay: z.number().gt(0).max(24)
 })
 
+export const ContractPartySchema = z.object({
+  legalName: z.string().max(PARTY_FIELD_LIMITS.legalName),
+  taxId: z.string().max(PARTY_FIELD_LIMITS.taxId),
+  address: z.string().max(PARTY_FIELD_LIMITS.address),
+  email: z.string().max(PARTY_FIELD_LIMITS.email),
+  signerName: z.string().max(PARTY_FIELD_LIMITS.signerName),
+  signerId: z.string().max(PARTY_FIELD_LIMITS.signerId),
+  signerRole: z.string().max(PARTY_FIELD_LIMITS.signerRole)
+})
+
 export const QuoteSchema = z.object({
   number: z.string().max(50),
   date: IsoDateSchema.nullable(),
   validityDays: z.number().int().min(0).max(3650).nullable(),
-  terms: z.string().max(20_000)
+  terms: z.string().max(20_000),
+  client: ContractPartySchema,
+  contractModelId: IdSchema.nullable()
 })
+
+/** The quote in a file: an unreadable contract model (or none, in early files of format 4) is the default one. */
+const StoredQuoteSchema = QuoteSchema.extend({ contractModelId: IdSchema.nullable().catch(null) })
 
 export const MetaSchema = z.object({
   id: IdSchema,
@@ -153,7 +170,7 @@ export const MetaSchema = z.object({
   pointScale: PointScaleSchema.nullable(),
   sprints: SprintSettingsSchema.nullable().catch(DEFAULT_SPRINT_SETTINGS),
   tags: z.array(z.unknown()).catch([]).transform(cleanTags),
-  quote: QuoteSchema,
+  quote: StoredQuoteSchema,
   archived: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -178,7 +195,9 @@ export const ReportOptionsSchema = z.object({
     breakdown: z.boolean(),
     workload: z.boolean(),
     shared: z.boolean(),
-    terms: z.boolean()
+    terms: z.boolean(),
+    // Options saved before the quote could be signed: with the signatures page.
+    signatures: z.boolean().default(true)
   }),
   columns: z.object({
     hours: z.boolean(),
@@ -196,12 +215,15 @@ export const ReportOptionsSchema = z.object({
   landscape: z.boolean(),
   openAfterExport: z.boolean(),
   // Options saved before this field existed: descriptions go in a separate section.
-  descriptions: z.enum(['none', 'inline', 'section']).default('section')
+  descriptions: z.enum(['none', 'inline', 'section']).default('section'),
+  // Options saved before the quote could be signed: initials boxes on every page.
+  initials: z.boolean().default(true)
 })
 
-export const IssuerSchema = z.object({
+const ISSUER_SHAPE = {
   name: z.string().max(200),
   taxId: z.string().max(50),
+  taxIdLabel: z.string().max(30),
   address: z.string().max(500),
   email: z.string().max(200),
   phone: z.string().max(50),
@@ -210,7 +232,40 @@ export const IssuerSchema = z.object({
     .string()
     .max(3_000_000)
     .regex(/^data:image\/(png|jpeg|svg\+xml|webp);base64,[A-Za-z0-9+/=]+$/, 'Invalid logo')
-    .nullable()
+    .nullable(),
+  signerName: z.string().max(200),
+  signerId: z.string().max(50),
+  signerRole: z.string().max(100)
+}
+
+/** Issuer in settings.json. Settings saved before the quote could be signed have no signer. */
+export const IssuerSchema = z.object({
+  ...ISSUER_SHAPE,
+  taxIdLabel: ISSUER_SHAPE.taxIdLabel.default(''),
+  signerName: ISSUER_SHAPE.signerName.default(''),
+  signerId: ISSUER_SHAPE.signerId.default(''),
+  signerRole: ISSUER_SHAPE.signerRole.default('')
+})
+
+/** Some fields of the issuer changed in the renderer: without defaults, so the other fields are kept. */
+export const IssuerPatchSchema = z.strictObject(ISSUER_SHAPE).partial()
+
+const { name: NAME, place: PLACE, text: TEXT } = LIBRARY_LIMITS
+
+/** A contract of the library (one per country, usually). */
+export const ContractModelSchema = z.strictObject({
+  id: IdSchema,
+  name: z.string().trim().min(1).max(NAME),
+  governingLaw: z.string().max(PLACE),
+  courts: z.string().max(PLACE),
+  generalTerms: z.string().max(TEXT)
+})
+
+/** A text of the library for the particular terms of any project. */
+export const SavedTextSchema = z.strictObject({
+  id: IdSchema,
+  name: z.string().trim().min(1).max(NAME),
+  text: z.string().max(TEXT)
 })
 
 export const ThemeSchema = z.enum(['system', 'light', 'dark'])
@@ -219,5 +274,8 @@ export const SettingsSchema = z.object({
   theme: ThemeSchema,
   language: LanguagePreferenceSchema,
   issuer: IssuerSchema,
-  reportOptions: z.record(IdSchema, ReportOptionsSchema)
+  reportOptions: z.record(IdSchema, ReportOptionsSchema),
+  contractModels: z.array(ContractModelSchema).max(LIBRARY_LIMITS.models).default([]),
+  defaultContractModelId: IdSchema.nullable().default(null),
+  savedTexts: z.array(SavedTextSchema).max(LIBRARY_LIMITS.texts).default([])
 })

@@ -2,6 +2,7 @@ import { TASK_STATUSES, type TaskStatus } from '@domain'
 import { STATUS_LABELS } from '@shared/labels'
 import { createFormatter, type Formatter } from '@shared/format'
 import { TAG_PALETTE } from '@shared/tagPalette'
+import { termsParagraphs } from '@shared/terms'
 import type { ReportLaneTask, ReportModel, ReportProgress, ReportRow, ReportSprint, ReportTag } from '@application'
 import { reportCss } from './reportCss'
 import { escapeHtml, renderDescriptionHtml } from './descriptionHtml'
@@ -44,11 +45,16 @@ function money(model: ReportModel, f: Formatter, cents: number): string {
   return f.money(cents, model.project.currency)
 }
 
+/** Name of the issuer's tax ID: theirs (RUT, NIF…) or the default of the language. Not escaped. */
+function issuerTaxIdLabel(model: ReportModel): string {
+  return model.issuer.taxIdLabel.trim() || localeOf(model).text.cover.taxId
+}
+
 function cover(model: ReportModel): string {
   const { project, summary, issuer, options } = model
   const { f, text } = localeOf(model)
   const cols = options.columns
-  const issuerLines = [issuer.taxId && `${text.cover.taxId} ${issuer.taxId}`, issuer.address, issuer.email, issuer.phone, issuer.website]
+  const issuerLines = [issuer.taxId && `${issuerTaxIdLabel(model)}: ${issuer.taxId}`, issuer.address, issuer.email, issuer.phone, issuer.website]
     .filter(Boolean)
     .map((l) => e(String(l)))
     .join(' · ')
@@ -529,24 +535,102 @@ ${body}
 </section>`
 }
 
-/** Paragraphs of the terms (blank lines separate them), with their own line breaks and indents. */
-function termsParagraphs(terms: string): string[] {
-  return terms
-    .split(/\r?\n(?:[ \t]*\r?\n)+/)
-    .map((paragraph) => paragraph.replace(/^(?:[ \t]*\r?\n)+/, '').trimEnd())
-    .filter((paragraph) => paragraph.trim() !== '')
+/**
+ * One section of terms with a block per clause, never split between two pages. Like the appendix,
+ * the terms only stay on the page if all of them fit; otherwise they start on the next one (and
+ * longer ones break between clauses).
+ */
+function termsBlock(title: string, note: string, paragraphs: readonly string[]): string {
+  return `
+<section class="flow together">
+  <h2>${e(title)}</h2>
+  ${note ? `<p class="small muted lead">${e(note)}</p>` : ''}
+  ${paragraphs.map((paragraph) => `<p class="pre clause">${e(paragraph)}</p>`).join('\n  ')}
+</section>`
 }
 
-function termsSection(model: ReportModel, flow: boolean): string {
-  const paragraphs = termsParagraphs(model.project.terms)
-  if (paragraphs.length === 0) return ''
+/** The particular terms of the project and the general terms of its contract model, which they prevail over. */
+function termsSections(model: ReportModel): string {
   const { text } = localeOf(model)
-  // One block per clause, never split between two pages. Like the appendix, the terms only stay on the
-  // page if all of them fit; otherwise they start on the next one (and longer ones break between clauses).
+  const particular = termsParagraphs(model.project.terms)
+  const general = termsParagraphs(model.contract?.generalTerms ?? '')
+  if (particular.length > 0 && general.length > 0) {
+    return termsBlock(text.terms.particularTitle, text.terms.precedence, particular) + termsBlock(text.terms.generalTitle, '', general)
+  }
+  const only = particular.length > 0 ? particular : general
+  return only.length > 0 ? termsBlock(text.terms.title, '', only) : ''
+}
+
+/** A detail of the contract, or a blank line to fill in by hand when it is empty. */
+function fill(value: string): string {
+  const text = value.trim()
+  return text ? `<span class="value">${e(text)}</span>` : '<span class="value blank"></span>'
+}
+
+/** Label and value of a party or a signature (labels are texts of the PDF or the issuer's own). */
+function contractRows(rows: ReadonlyArray<readonly [label: string, value: string]>): string {
+  return rows.map(([label, value]) => `<div class="row"><span class="label">${e(label)}:</span>${fill(value)}</div>`).join('')
+}
+
+/**
+ * Last page of a quote signed as a contract: who the parties are, what they accept (quote, scope,
+ * amount and terms), the law and courts of its contract model, and room for both signatures. Empty
+ * details are blank lines, so it can be completed by hand. It is never split between two pages.
+ */
+function signaturesSection(model: ReportModel): string {
+  const { project, issuer, summary, options } = model
+  const { f, text } = localeOf(model)
+  const t = text.signatures
+  const party = project.clientParty
+  const parties = [
+    { role: t.provider, name: issuer.name, rows: [[issuerTaxIdLabel(model), issuer.taxId], [t.address, issuer.address], [t.email, issuer.email]] as const },
+    {
+      role: t.client,
+      name: party.legalName || project.client,
+      rows: [[t.clientTaxId, party.taxId], [t.address, party.address], [t.email, party.email]] as const
+    }
+  ]
+  const signers = [
+    {
+      role: t.provider,
+      rows: [
+        [t.signerName, issuer.signerName],
+        [t.signerId, issuer.signerId],
+        // The issuer signs for themselves unless they set a role.
+        ...(issuer.signerRole.trim() ? [[t.signerRole, issuer.signerRole] as const] : []),
+        [t.placeAndDate, '']
+      ] as const
+    },
+    {
+      role: t.client,
+      rows: [[t.signerName, party.signerName], [t.signerId, party.signerId], [t.signerRole, party.signerRole], [t.placeAndDate, '']] as const
+    }
+  ]
+  const acceptance = t.acceptance({
+    number: e(project.quoteNumber),
+    date: f.dateLong(project.quoteDate),
+    project: e(project.name),
+    amount: options.columns.cost ? money(model, f, summary.money.totalCents) : null
+  })
+  const governingLaw = model.contract?.governingLaw.trim() ?? ''
+  const courts = model.contract?.courts.trim() ?? ''
+  const law = [
+    governingLaw ? t.governingLaw(e(governingLaw)) : '',
+    courts ? t.courts(e(courts)) : ''
+  ]
+    .filter(Boolean)
+    .join(' ')
   return `
-<section class="${flow ? 'flow together' : 'together'}">
-  <h2>${e(text.terms.title)}</h2>
-  ${paragraphs.map((paragraph) => `<p class="pre clause">${e(paragraph)}</p>`).join('\n  ')}
+<section class="flow together signatures">
+  <h2>${e(t.title)}</h2>
+  <div class="parties">
+    ${parties.map((p) => `<div class="party"><div class="role">${e(p.role)}</div><div class="name">${fill(p.name)}</div>${contractRows(p.rows)}</div>`).join('\n    ')}
+  </div>
+  <p class="acceptance">${acceptance}${project.validUntil ? ` ${t.validUntil(f.dateLong(project.validUntil))}` : ''}</p>
+  ${law ? `<p class="law">${law}</p>` : ''}
+  <div class="signs">
+    ${signers.map((s) => `<div class="sign"><div class="role">${e(s.role)}</div><div class="space"></div><div class="caption">${e(t.signature)}</div>${contractRows(s.rows)}</div>`).join('\n    ')}
+  </div>
 </section>`
 }
 
@@ -613,7 +697,8 @@ export function renderReportHtml(raw: ReportModel): string {
   parts.push(progressSection(model))
   if (s.workload) parts.push(workloadSection(model, false))
   if (s.shared) parts.push(sharedSection(model, true))
-  if (s.terms) parts.push(termsSection(model, true))
+  if (s.terms) parts.push(termsSections(model))
+  if (s.signatures) parts.push(signaturesSection(model))
   return `<!doctype html>
 <html lang="${model.options.language}">
 <head>
@@ -628,10 +713,23 @@ ${parts.filter(Boolean).join('\n')}
 </html>`
 }
 
-/** Page footer for printToPDF (it does not inherit the CSS of the document). */
+/**
+ * Page footer for printToPDF (it does not inherit the CSS of the document). Every page names the
+ * quote and its number, and when the quote is signed as a contract it has a box for the initials
+ * of each party, so no page can be swapped.
+ */
 export function footerTemplate(model: ReportModel): string {
   const { text } = localeOf(model)
-  const left = [model.issuer.name, model.project.name].filter(Boolean).map(e).join(' · ')
-  return `<div style="width:100%;font-size:7.5px;color:#6b7280;padding:0 14mm;display:flex;justify-content:space-between;font-family:'Segoe UI',Arial,sans-serif;">
-<span>${left}</span><span>${text.pageOf('<span class="pageNumber"></span>', '<span class="totalPages"></span>')}</span></div>`
+  const { project, options } = model
+  const left = [model.issuer.name, project.name, project.quoteNumber && `${text.cover.quoteNumber} ${project.quoteNumber}`]
+    .filter(Boolean)
+    .map((part) => e(String(part)))
+    .join(' · ')
+  const box = '<span style="display:inline-block;width:13mm;height:4.5mm;border:0.6px solid #9ca3af;border-radius:1px;margin-left:1.5mm;"></span>'
+  const initials =
+    options.sections.signatures && options.initials
+      ? `<span style="display:flex;align-items:center;">${e(text.signatures.initials)}${box}${box}</span>`
+      : ''
+  return `<div style="width:100%;font-size:7.5px;color:#6b7280;padding:0 14mm;display:flex;align-items:center;justify-content:space-between;gap:4mm;font-family:'Segoe UI',Arial,sans-serif;">
+<span>${left}</span>${initials}<span>${text.pageOf('<span class="pageNumber"></span>', '<span class="totalPages"></span>')}</span></div>`
 }

@@ -12,14 +12,17 @@ import {
   type TaskPatch
 } from '@domain'
 import { IMPORT_RESOLUTIONS, type SettingsPatch } from '@application'
+import { LIBRARY_LIMITS } from '@shared/terms'
 import {
   IdSchema,
   IsoDateSchema,
-  IssuerSchema,
+  ContractModelSchema,
+  IssuerPatchSchema,
   LanguagePreferenceSchema,
   LanguageSchema,
   QuoteSchema,
   ReportOptionsSchema,
+  SavedTextSchema,
   TagIdSchema,
   ThemeSchema
 } from '../validation/schemas'
@@ -162,8 +165,11 @@ export const NewProjectSchema = z.strictObject({
 export const SettingsPatchSchema = z.strictObject({
   theme: ThemeSchema.optional(),
   language: LanguagePreferenceSchema.optional(),
-  issuer: IssuerSchema.partial().optional(),
-  reportOptions: z.record(IdSchema, ReportOptionsSchema).optional()
+  issuer: IssuerPatchSchema.optional(),
+  reportOptions: z.record(IdSchema, ReportOptionsSchema).optional(),
+  contractModels: z.array(ContractModelSchema).max(LIBRARY_LIMITS.models).optional(),
+  defaultContractModelId: IdSchema.nullable().optional(),
+  savedTexts: z.array(SavedTextSchema).max(LIBRARY_LIMITS.texts).optional()
 })
 
 export const IdInputSchema = z.strictObject({ id: IdSchema })

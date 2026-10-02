@@ -10,8 +10,14 @@ export const en = {
     breakdown: 'Task breakdown (WBS)',
     workload: 'Team and workload',
     shared: 'Shared subtasks appendix',
-    terms: 'Terms'
+    terms: 'Terms (particular and general)',
+    signatures: 'Acceptance and signatures'
   },
+  termsModel: (name: string) => `General terms: contract model “${name}”`,
+  termsNoModel: 'No contract model: only the particular terms',
+  signaturesHint: 'The parties, what they accept and room for both signatures: the quote becomes a contract',
+  initials: 'Boxes for the initials of both parties on every page',
+  noQuoteNumber: 'This quote has no number yet: give it one in the project settings (Quote tab) to identify the contract.',
   columnsTitle: 'Columns and data',
   columns: {
     hours: 'Hours',
@@ -71,8 +77,14 @@ export const es: typeof en = {
     breakdown: 'Desglose de tareas (WBS)',
     workload: 'Equipo y carga',
     shared: 'Anexo de subtareas compartidas',
-    terms: 'Condiciones'
+    terms: 'Condiciones (particulares y generales)',
+    signatures: 'Aceptación y firmas'
   },
+  termsModel: (name) => `Condiciones generales: modelo de contrato «${name}»`,
+  termsNoModel: 'Sin modelo de contrato: solo las condiciones particulares',
+  signaturesHint: 'Las partes, lo que aceptan y el espacio para las dos firmas: el presupuesto se convierte en contrato',
+  initials: 'Casillas para las iniciales de ambas partes en cada página',
+  noQuoteNumber: 'Este presupuesto aún no tiene número: ponle uno en Ajustes del proyecto (pestaña Presupuesto) para identificar el contrato.',
   columnsTitle: 'Columnas y datos',
   columns: {
     hours: 'Horas',

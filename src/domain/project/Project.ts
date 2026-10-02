@@ -9,13 +9,61 @@ import type { TagDef } from './tags'
 /** Maximum length of a project name. */
 export const MAX_PROJECT_NAME_LENGTH = 200
 
+/**
+ * A party of the contract the quote becomes once it is signed: how it is identified and who signs
+ * for it. Every field is optional text; an empty one is a blank line to fill in by hand in the PDF.
+ */
+export interface ContractParty {
+  /** Company name or full name. */
+  readonly legalName: string
+  readonly taxId: string
+  readonly address: string
+  readonly email: string
+  readonly signerName: string
+  /** ID document of whoever signs. */
+  readonly signerId: string
+  readonly signerRole: string
+}
+
+export const EMPTY_PARTY: ContractParty = {
+  legalName: '',
+  taxId: '',
+  address: '',
+  email: '',
+  signerName: '',
+  signerId: '',
+  signerRole: ''
+}
+
+/** Maximum length of each field of a contract party. */
+export const PARTY_FIELD_LIMITS: Readonly<Record<keyof ContractParty, number>> = {
+  legalName: 200,
+  taxId: 50,
+  address: 500,
+  email: 200,
+  signerName: 200,
+  signerId: 50,
+  signerRole: 100
+}
+
 /** Quote details shown in the PDF. */
 export interface QuoteInfo {
   readonly number: string
   readonly date: IsoDate | null
   readonly validityDays: number | null
+  /** Particular terms of this project (the general ones come from its contract model). */
   readonly terms: string
+  /** The client as a party of the contract. */
+  readonly client: ContractParty
+  /**
+   * Contract model of the issuer's library (general terms, law and courts) the quote is signed
+   * under; null = their default model. The library lives outside the project.
+   */
+  readonly contractModelId: string | null
 }
+
+/** Maximum length of the id of a contract model. */
+export const MAX_CONTRACT_MODEL_ID_LENGTH = 64
 
 /** General details and calculation parameters of the project. */
 export interface ProjectMeta {
