@@ -1,6 +1,6 @@
 # Planner
 
-A desktop project planner for Windows. Create tasks and subtasks with no depth limit, estimate them Jira-style and export a PDF quote ready to present to your client.
+A desktop project planner for Windows and Linux. Create tasks and subtasks with no depth limit, estimate them Jira-style and export a PDF quote ready to present to your client.
 
 A subtask can belong to several tasks at once, and hours, cost and duration still count it **only once**. The interface and the PDF are available in **English and Spanish**.
 
@@ -13,7 +13,7 @@ A subtask can belong to several tasks at once, and hours, cost and duration stil
 3. [Installation](#installation)
 4. [User guide](#user-guide)
 5. [Development](#development)
-6. [Building the .exe](#building-the-exe)
+6. [Building the apps](#building-the-apps)
 7. [Architecture](#architecture)
 8. [Internationalization](#internationalization)
 9. [Domain model and calculations](#domain-model-and-calculations)
@@ -75,9 +75,9 @@ The screenshots and the [sample PDF](docs/sample-quote.pdf) are regenerated with
 
 ## Installation
 
-**Requirements:** Windows 10 or 11, 64-bit. Nothing else needs to be installed.
+Planner runs on **Windows 10 or 11** and on **Linux**, 64-bit (x64) with a desktop; the Linux version is tested on Ubuntu 24.04 (in WSL 2). Nothing else needs to be installed. The packages are built into `release/` (see [Building the apps](#building-the-apps)).
 
-There are two executables. They are built into `release/` with `pnpm dist:win` (see [Building the .exe](#building-the-exe)).
+### Windows
 
 | File | What it is | Where it stores the data |
 |---|---|---|
@@ -85,6 +85,34 @@ There are two executables. They are built into `release/` with `pnpm dist:win` (
 | `Planner-1.0.0-portable.exe` | A single `.exe` that needs no installation; you can carry it on a USB drive, for example. | `PlannerData` folder next to the `.exe`. If that folder is not writable, `%APPDATA%\Planner\data`. |
 
 **SmartScreen warning.** The executables are not signed, so the first time Windows may show “Windows protected your PC”. Click “More info” and then “Run anyway”.
+
+### Linux
+
+| File | What it is | Where it stores the data |
+|---|---|---|
+| `Planner-1.0.0.AppImage` | A single file that needs no installation and works on most distributions, like the portable `.exe`. | `PlannerData` folder next to the `.AppImage`. If that folder is not writable, `~/.config/Planner/data`. |
+| `planner_1.0.0_amd64.deb` | Package for Ubuntu, Debian and their derivatives. It adds Planner to the applications menu. | `~/.config/Planner/data` |
+
+**AppImage.** Make it executable once, then open it like any program:
+
+```bash
+chmod +x Planner-1.0.0.AppImage
+```
+
+```bash
+./Planner-1.0.0.AppImage
+```
+
+- If it says that `libfuse.so.2` is missing, install `libfuse2t64` on Ubuntu 24.04 (`libfuse2` on older versions), or start it with `--appimage-extract-and-run`.
+- On Ubuntu 24.04 and later, the system can block the sandbox of Chromium inside an AppImage, and the app closes at once. Use the `.deb`, which installs the sandbox correctly, or start the AppImage with `--no-sandbox`.
+
+**.deb.** Install it with apt; it can be removed with `sudo apt remove planner`:
+
+```bash
+sudo apt install ./planner_1.0.0_amd64.deb
+```
+
+The data has the same format on both systems: to take your projects from Windows to Linux or back, copy the data folder with the app closed.
 
 **Where is my data?** Go to Settings (⚙) → General → Data → “Open folder”. The contents of that folder are explained in [Persistence](#persistence).
 
@@ -324,7 +352,7 @@ These are four pages of the [sample PDF](docs/sample-quote.pdf), exported with s
 ### Language
 
 - **Interface.** Use the language button in the top bar (the 文A icon), or Settings → General → Language. The options are English, Español and System. The interface switches immediately.
-- **System.** Follows the Windows display language: Spanish if it is Spanish (or Catalan, Galician or Basque), English otherwise.
+- **System.** Follows the display language of the system: Spanish if it is Spanish (or Catalan, Galician or Basque), English otherwise.
 - **Formats.** English uses US formats (`€7,327.16 · 124.3 h · Sep 30, 2026 · 21%`); Spanish uses Spanish formats (`7.327,16 € · 124,3 h · 30 sept 2026 · 21 %`). Numbers can be typed with either decimal separator.
 - **PDF.** Its language is chosen in the export dialog and remembered per project.
 - **Your data is never translated.** Task titles, names and descriptions stay as you wrote them. If the tax name of a project is left empty, the PDF writes “Tax” in English and “IVA” in Spanish.
@@ -334,7 +362,7 @@ These are four pages of the [sample PDF](docs/sample-quote.pdf), exported with s
 
 ### Theme
 
-The theme button in the top bar (☀ / ☾ / 🖥) opens a menu with three options: Light, Dark or System, which follows the Windows theme. It can also be changed in Settings → General → Appearance.
+The theme button in the top bar (☀ / ☾ / 🖥) opens a menu with three options: Light, Dark or System, which follows the theme of the system. It can also be changed in Settings → General → Appearance.
 
 ### Keyboard shortcuts
 
@@ -383,7 +411,7 @@ Press **F1** (or the ⌨ icon) to see them inside the app.
 - **pnpm 11.** Its configuration lives in `pnpm-workspace.yaml`:
   - `allowBuilds` says which dependencies may run install scripts;
   - `minimumReleaseAgeExclude` lists the exceptions to the minimum release age.
-- **Windows,** to build the `.exe` files. The app itself can be developed on any system.
+- **Windows** to build the `.exe` files, and **Linux** (or WSL 2 on Windows) to build the AppImage and the `.deb`. The app itself can be developed on any system.
 
 ### Getting started
 
@@ -416,7 +444,9 @@ pnpm seed:big
 | `pnpm test` | Unit and property tests (Vitest + fast-check). |
 | `pnpm test:watch` | The same in watch mode. |
 | `pnpm test:e2e` | Builds the app and runs the end-to-end tests on the real app (Playwright + Electron). |
-| `pnpm dist:win` | Builds the app and creates the installer and the portable exe in `release/`. |
+| `pnpm dist:win` | Builds the app and creates the installer and the portable exe in `release/` (on Windows). |
+| `pnpm dist:linux` | Builds the app and creates the AppImage and the `.deb` in `release/` (on Linux). |
+| `pnpm dist:linux:wsl` | The same from Windows: runs `pnpm dist:linux` in WSL and copies the packages to `release/`. |
 | `pnpm seed:big` | Creates a 5,000-task project in `.planner-data/` to test performance. |
 | `pnpm icon` | Regenerates `build/icon.png` and `src/presentation/assets/logo.svg` from `build/icon.svg`. |
 | `pnpm docs:screenshots` | Builds the app and regenerates the README screenshots (`docs/images/`) and the sample PDF. |
@@ -427,12 +457,17 @@ pnpm seed:big
 |---|---|
 | `PLANNER_DATA_DIR` | Data folder. It takes precedence over everything else. |
 | `PLANNER_E2E_DIR` | For tests: save dialogs are not shown and files are written to this folder. |
-| `PLANNER_E2E_OPEN` | For tests: files returned by the open dialog, one per call (backup import), separated like `PATH` (`;` on Windows). |
+| `PLANNER_E2E_OPEN` | For tests: files returned by the open dialog, one per call (backup import), separated like `PATH` (`;` on Windows, `:` on Linux). |
+| `PLANNER_WSL_DISTRO` | For `pnpm dist:linux:wsl`: the WSL distribution to build in (`Ubuntu` by default). |
 | `ELECTRON_RENDERER_URL` | Set by `pnpm dev`; it points to the Vite server. |
 
 ---
 
-## Building the .exe
+## Building the apps
+
+Each package is built on its own system: the Windows ones on Windows, the Linux ones on Linux. From Windows, the Linux ones can also be built in WSL with a single command.
+
+### Windows
 
 ```bash
 pnpm dist:win
@@ -453,10 +488,34 @@ This command runs two steps:
    - `Planner-<version>-portable.exe`;
    - `win-unpacked/`, the unpackaged app, useful for debugging.
 
-Other packaging settings:
+### Linux
+
+On Linux, after `pnpm install`:
+
+```bash
+pnpm dist:linux
+```
+
+`electron-builder --linux --x64` writes to `release/`:
+- `Planner-<version>.AppImage`;
+- `planner_<version>_amd64.deb`;
+- `linux-unpacked/`, the unpackaged app.
+
+**From Windows, with WSL 2:**
+
+```bash
+pnpm dist:linux:wsl
+```
+
+`scripts/build-linux-wsl.mjs` copies the working tree to `~/planner-build` in WSL (keeping the Linux `node_modules` of earlier builds), installs the dependencies there with the pnpm of the lockfile, runs `pnpm dist:linux` and copies the AppImage and the `.deb` to `release/`. It needs:
+- WSL 2 with a Linux distribution: `Ubuntu` by default, or set `PLANNER_WSL_DISTRO`;
+- Node 22 or newer in that distribution, on its `PATH` or unpacked in `~/.local/share/planner-node` (the official tarball from nodejs.org, without installing anything system-wide).
+
+### Packaging settings
 
 - **Version.** The `version` field of `package.json`; it appears in the file names.
-- **Icon.** Edit `build/icon.svg` and run `pnpm icon`. This generates `build/icon.png` (512 px), which electron-builder turns into an `.ico`.
+- **Icon.** Edit `build/icon.svg` and run `pnpm icon`. This generates `build/icon.png` (512 px), which electron-builder turns into an `.ico` for Windows and uses as is on Linux, where it is also the icon of the window.
+- **Linux.** The `linux` section of `electron-builder.yml`: the AppImage and the `.deb` for x64, the `planner` executable, the Office category of the applications menu and the maintainer of the `.deb`.
 - **Fuses.** The executable is hardened with Electron *fuses*: no Node mode (`runAsNode`), no `NODE_OPTIONS` or `--inspect`, encrypted cookies, and loading only from `app.asar` with verified integrity. If someone modifies the `.asar`, the app does not start.
 - **Signing.** Disabled (`signExecutable: false`). To sign:
   1. Set `CSC_LINK` (path to the `.pfx` certificate) and `CSC_KEY_PASSWORD`.
@@ -795,9 +854,11 @@ listed      = tasks with initial(t) ≠ final(t)     forward if final comes late
 The folder is chosen in this order of priority:
 
 1. `PLANNER_DATA_DIR`.
-2. In the portable version: the `PlannerData` folder next to the `.exe`, if it is writable.
+2. In the portable versions, the `PlannerData` folder next to the file you run, if it is writable: the portable `.exe` on Windows, the `.AppImage` on Linux.
 3. In development: `.planner-data/`.
-4. Otherwise: `%APPDATA%\Planner\data`.
+4. Otherwise, the data folder of the user: `%APPDATA%\Planner\data` on Windows, `~/.config/Planner/data` on Linux.
+
+The rule is `chooseDataLocation` in `infrastructure/electron/main/dataLocation.ts`, tested without Electron.
 
 ```
 <data folder>/
@@ -852,7 +913,7 @@ When reading, the file is validated with zod (`infrastructure/validation/schemas
 
 ### Writing and recovery
 
-- **Deferred writes.** Changes are grouped (300 ms) and written in the background. Pending writes are forced when the app or the Windows session closes.
+- **Deferred writes.** Changes are grouped (300 ms) and written in the background. Pending writes are forced when the app closes, and when the Windows session ends.
 - **Atomic writes.** The file is written to `<id>.json.tmp`, flushed to disk (`fsync`) and renamed. Before that, the previous version is kept as `.bak`. A power cut never leaves a half-written file.
 - **Recovery.** If the main file cannot be read, `.tmp` is tried and then `.bak`. Unreadable files are moved to `quarantine/`.
 - **Format versions.**
@@ -902,7 +963,7 @@ Every response is an `IpcResult`: `{ ok: true, data }` or `{ ok: false, error: {
   - no application menu;
   - the developer tools are only available unpackaged;
   - the window that generates the PDF runs no JavaScript and all user text is escaped;
-  - executable fuses (see [Building the .exe](#building-the-exe)).
+  - executable fuses (see [Building the apps](#building-the-apps)).
 
 ---
 
@@ -1014,8 +1075,13 @@ The E2E tests start the built app with a temporary data folder (`PLANNER_DATA_DI
 
 | Problem | Solution |
 |---|---|
-| **SmartScreen blocks the `.exe`** | Click “More info” and then “Run anyway”, or [sign the executable](#building-the-exe). |
+| **SmartScreen blocks the `.exe`** | Click “More info” and then “Run anyway”, or [sign the executable](#building-the-apps). |
 | **The portable version saves to `%APPDATA%`** | The folder of the `.exe` is not writable (for example, inside `Program Files`). Move it to a folder of your own. |
+| **The AppImage saves to `~/.config/Planner`** | The same: the folder of the `.AppImage` is not writable. Move it to a folder of your own, such as `~/Applications`. |
+| **The AppImage does not start: `libfuse.so.2` is missing** | Install `libfuse2t64` (Ubuntu 24.04) or `libfuse2`, or start it with `--appimage-extract-and-run`. |
+| **The AppImage closes at once on Ubuntu 24.04** | The system blocks the sandbox of Chromium for AppImages. Install the `.deb` instead, or start it with `--no-sandbox`. |
+| **The PDF looks different on Linux** | It uses Segoe UI on Windows and, on Linux, Liberation Sans, Noto Sans or DejaVu Sans, whichever is installed; the text can take a little more or less room. |
+| **`pnpm dist:linux:wsl` says that Node 22 or newer is needed** | Install Node in the WSL distribution, or unpack the official tarball from nodejs.org in `~/.local/share/planner-node`. |
 | **A project does not appear or does not open** | Look in `quarantine/` (damaged files), `backups/` (daily copies) and `trash/` (trash, and versions replaced by an imported backup) inside the data folder. To recover a copy, close the app and copy the file to `projects/`, or use “Import backup…”. |
 | **The PDF shows no sprints, or all changes in the current sprint** | Sprints count from the project start date (Planning and costs). Changes are only recorded from format 3 on: projects from earlier versions have no past history. |
 | **“The file comes from a newer version of Planner”** | It was created with a later version of the app. It opens read-only: update the app. |
@@ -1023,7 +1089,7 @@ The E2E tests start the built app with a temporary data folder (`PLANNER_DATA_DI
 | **`pnpm install` rejects a version because of `minimumReleaseAge`** | pnpm 11 does not install versions published very recently. Wait, or add the version to `minimumReleaseAgeExclude` in `pnpm-workspace.yaml`. |
 | **“Electron failed to install correctly”** | Run `pnpm exec install-electron` to download the binary. |
 | **The E2E tests use old code** | `playwright test` uses what is in `out/`. `pnpm test:e2e` builds first; if you run Playwright by hand, run `pnpm build` before. |
-| **The packaged app does not start after touching `resources/app.asar`** | Expected: the fuses verify the integrity of the `.asar`. Build it again with `pnpm dist:win`. |
+| **The packaged app does not start after touching `resources/app.asar`** | Expected: the fuses verify the integrity of the `.asar`. Build it again with `pnpm dist:win` or `pnpm dist:linux`. |
 | **ESLint: “import is restricted from being used by a pattern”** | A [layer rule](#dependency-rules) was crossed. Move the code to the layer it belongs to, or use `import type` if you only need the type. |
 | **A test fails with “The code is written in English”** | A comment or literal outside a `// i18n:es-start` … `// i18n:es-end` block contains Spanish. Translate it, or move the text to the `es` catalog. |
 

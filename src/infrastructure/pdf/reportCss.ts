@@ -1,3 +1,9 @@
+/**
+ * Fonts of the PDF: Segoe UI on Windows; on Linux, Liberation Sans (with the measures of Arial),
+ * Noto Sans or DejaVu Sans, whichever is installed.
+ */
+export const PDF_FONTS = "'Segoe UI', 'Helvetica Neue', Arial, 'Liberation Sans', 'Noto Sans', 'DejaVu Sans', sans-serif"
+
 /** Styles of the quote. Always light: the PDF does not depend on the app theme. */
 export function reportCss(accent: string): string {
   return `
@@ -14,7 +20,7 @@ export function reportCss(accent: string): string {
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: #fff; }
 body {
-  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  font-family: ${PDF_FONTS};
   font-size: 9.2pt;
   line-height: 1.45;
   color: var(--ink);

@@ -4,7 +4,7 @@ import { createFormatter, type Formatter } from '@shared/format'
 import { TAG_PALETTE } from '@shared/tagPalette'
 import { termsParagraphs } from '@shared/terms'
 import type { ReportLaneTask, ReportModel, ReportProgress, ReportRow, ReportSprint, ReportTag } from '@application'
-import { reportCss } from './reportCss'
+import { PDF_FONTS, reportCss } from './reportCss'
 import { escapeHtml, renderDescriptionHtml } from './descriptionHtml'
 import { REPORT_TEXT, type ReportText } from './reportText'
 
@@ -730,6 +730,6 @@ export function footerTemplate(model: ReportModel): string {
     options.sections.signatures && options.initials
       ? `<span style="display:flex;align-items:center;">${e(text.signatures.initials)}${box}${box}</span>`
       : ''
-  return `<div style="width:100%;font-size:7.5px;color:#6b7280;padding:0 14mm;display:flex;align-items:center;justify-content:space-between;gap:4mm;font-family:'Segoe UI',Arial,sans-serif;">
+  return `<div style="width:100%;font-size:7.5px;color:#6b7280;padding:0 14mm;display:flex;align-items:center;justify-content:space-between;gap:4mm;font-family:${PDF_FONTS};">
 <span>${left}</span>${initials}<span>${text.pageOf('<span class="pageNumber"></span>', '<span class="totalPages"></span>')}</span></div>`
 }

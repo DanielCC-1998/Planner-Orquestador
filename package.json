@@ -3,6 +3,8 @@
   "productName": "Planner",
   "version": "1.0.0",
   "description": "Project planner with nested tasks, shared subtasks and PDF export",
+  "homepage": "https://github.com/DanielCC-1998/Planner-Orquestador",
+  "desktopName": "planner.desktop",
   "author": "Daniel Cano Carrascosa",
   "license": "PolyForm-Noncommercial-1.0.0",
   "private": true,
@@ -18,6 +20,8 @@
     "test:watch": "vitest",
     "test:e2e": "electron-vite build && playwright test",
     "dist:win": "electron-vite build && electron-builder --win --x64",
+    "dist:linux": "electron-vite build && electron-builder --linux --x64",
+    "dist:linux:wsl": "node scripts/build-linux-wsl.mjs",
     "seed:big": "node scripts/seed-big.mjs .planner-data 5000",
     "icon": "node scripts/make-icon.mjs",
     "docs:screenshots": "electron-vite build && node scripts/docs-screenshots.mjs"

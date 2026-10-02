@@ -15,6 +15,15 @@ let container: Container | null = null
 // The data folder is known before the app is ready: the stored language must be read now.
 const location = resolveDataLocation()
 
+/**
+ * Icon of the window: the .exe already carries it on Windows; packaged on Linux it is a resource of
+ * the app (for X11 window managers); in development, the one of the build folder.
+ */
+function windowIcon(): string | undefined {
+  if (!app.isPackaged) return join(__dirname, '../../build/icon.png')
+  return process.platform === 'linux' ? join(process.resourcesPath, 'icon.png') : undefined
+}
+
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1440,
@@ -25,7 +34,7 @@ function createMainWindow(): BrowserWindow {
     title: 'Planner',
     autoHideMenuBar: true,
     backgroundColor: windowBackground(),
-    icon: app.isPackaged ? undefined : join(__dirname, '../../build/icon.png'),
+    icon: windowIcon(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -56,7 +65,7 @@ function createMainWindow(): BrowserWindow {
     }
   })
 
-  // Emergency save when the Windows session ends.
+  // Emergency save when the Windows session ends (on Linux, quitting already saves everything).
   win.on('session-end', () => void container?.repo.flush())
 
   const devUrl = process.env['ELECTRON_RENDERER_URL']
@@ -108,7 +117,8 @@ async function start(): Promise<void> {
 // set at startup: use the language chosen in the settings. With 'system', Chromium follows the OS.
 const storedLanguage = readStoredLanguage(join(location.dir, 'settings.json'))
 if (storedLanguage) app.commandLine.appendSwitch('lang', LOCALE_OF[storedLanguage])
-app.setAppUserModelId('com.planner.desktop')
+// Windows groups the windows of the app in the taskbar by this id (the method only exists there).
+if (process.platform === 'win32') app.setAppUserModelId('com.planner.desktop')
 applySecurityPolicy()
 Menu.setApplicationMenu(null)
 

@@ -59,7 +59,7 @@ export const en = {
   nameRequired: 'Give every contract model and saved text a name.',
   data: 'Data',
   openFolder: 'Open folder',
-  portableNote: 'Portable version: the data travels with the .exe. ',
+  portableNote: 'Portable version: the data travels with the app file (.exe or AppImage). ',
   dataNote: (version: string) => `Each project is a JSON file with a daily backup. Version ${version}.`,
   saved: 'Settings saved'
 }
@@ -125,7 +125,7 @@ export const es: typeof en = {
   nameRequired: 'Pon nombre a todos los modelos de contrato y textos guardados.',
   data: 'Datos',
   openFolder: 'Abrir carpeta',
-  portableNote: 'Versión portable: los datos viajan junto al .exe. ',
+  portableNote: 'Versión portable: los datos viajan junto al archivo de la app (.exe o AppImage). ',
   dataNote: (version) => `Cada proyecto es un archivo JSON con copia de seguridad diaria. Versión ${version}.`,
   saved: 'Ajustes guardados'
 }

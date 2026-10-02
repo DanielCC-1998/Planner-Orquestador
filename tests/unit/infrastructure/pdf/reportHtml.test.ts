@@ -4,7 +4,7 @@ import { apply, EMPTY_PARTY, LANGUAGES, type Language, type ProjectState } from 
 import { loginSignupScenario, run, testContext } from '@tests/support/builders'
 import { escapeHtml, renderDescriptionHtml } from '@infrastructure/pdf/descriptionHtml'
 import { footerTemplate, renderReportHtml } from '@infrastructure/pdf/reportHtml'
-import { reportCss } from '@infrastructure/pdf/reportCss'
+import { PDF_FONTS, reportCss } from '@infrastructure/pdf/reportCss'
 import { reportFileName } from '@infrastructure/pdf/reportText'
 
 const NOW = '2026-09-30T10:00:00.000Z'
@@ -505,5 +505,14 @@ describe('the quote as a contract', () => {
     expect(html).toContain('<p class="pre clause">1. Payment within 30 days.</p>')
     expect(html).not.toContain('General terms')
     expect(html).not.toContain('class="law"')
+  })
+})
+
+describe('fonts of the PDF', () => {
+  it('fall back to the usual Linux fonts where Segoe UI is missing, in the page and in the footer', () => {
+    expect(PDF_FONTS).toContain("'Liberation Sans'")
+    expect(reportCss('#000000')).toContain(`font-family: ${PDF_FONTS};`)
+    const { state } = loginSignupScenario()
+    expect(footerTemplate(buildReportModel(state, optionsIn('en'), EMPTY_ISSUER, { now: NOW }))).toContain(`font-family:${PDF_FONTS};`)
   })
 })

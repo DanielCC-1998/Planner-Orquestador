@@ -26,6 +26,30 @@ nsis:
   artifactName: ${productName}-${version}-setup.${ext}
 portable:
   artifactName: ${productName}-${version}-portable.${ext}
+# Linux (built on Linux or in WSL: pnpm dist:linux / pnpm dist:linux:wsl).
+linux:
+  icon: build/icon.png
+  executableName: planner
+  category: Office
+  synopsis: Project planner with nested tasks, shared subtasks and PDF quotes
+  maintainer: Daniel Cano Carrascosa
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  # The .desktop file is named after desktopName (package.json), which Electron also uses as app_id,
+  # so desktops match the running window with its entry in the menu.
+  syncDesktopName: true
+  # The icon of the window (on Windows it comes from the .exe).
+  extraResources:
+    - from: build/icon.png
+      to: icon.png
+# Portable, like the .exe: the data goes in a PlannerData folder next to the file.
+appImage:
+  artifactName: ${productName}-${version}.${ext}
+deb:
+  artifactName: ${name}_${version}_${arch}.${ext}
 # Hardening of the executable: no Node mode, no NODE_OPTIONS or --inspect,
 # and it only loads the app from the asar, with its integrity verified.
 electronFuses:
